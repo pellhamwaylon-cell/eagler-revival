@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WSS Remote Client</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.9);
+            --text: #f8fafc;
+            --accent: #3b82f6;
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        
+        /* Main Display Canvas */
+        #display {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            object-fit: contain;
+            /* Filters applied via JS */
+        }
+
+        /* Floating UI Panel */
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            transition: opacity 0.3s;
+        }
+        #ui-layer.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 320px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        h2, h3 { margin-top: 0; font-size: 1.2rem; }
+        h3 { font-size: 1rem; margin-top: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }
+
+        .input-group { margin-bottom: 12px; }
+        label { display: block; font-size: 0.85rem; margin-bottom: 4px; color: #cbd5e1; }
+        
+        input[type="text"], button {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(0,0,0,0.2);
+            color: white;
+            box-sizing: border-box;
+        }
+        
+        button {
+            background: var(--accent);
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #2563eb; }
+        
+        input[type="range"] { width: 100%; }
+
+        .status {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: #ef4444; /* red by default, green when connected */
+        }
+        .status.connected { color: #22c55e; }
+
+        #hide-ui-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="display"></canvas>
+    
+    <audio id="remote-audio" crossorigin="anonymous"></audio>
+
+    <div id="hide-ui-hint">Press <strong>ESC</strong> to release pointer. Press <strong>H</strong> to toggle settings menu.</div>
+
+    <div id="ui-layer">
+        <div class="panel">
+            <h2>Connection</h2>
+            <div class="input-group">
+                <input type="text" id="wss-url" placeholder="wss://your-server-ip:port" value="wss://">
+            </div>
+            <button id="connect-btn">Connect</button>
+            <div id="status-text" class="status">Disconnected</div>
+
+            <h3>Video Settings</h3>
+            <div class="input-group">
+                <label>Brightness</label>
+                <input type="range" id="vid-brightness" min="0" max="200" value="100">
+            </div>
+            <div class="input-group">
+                <label>Contrast</label>
+                <input type="range" id="vid-contrast" min="0" max="200" value="100">
+            </div>
+            <div class="input-group">
+                <label>Saturation</label>
+                <input type="range" id="vid-saturation" min="0" max="200" value="100">
+            </div>
+            <div class="input-group">
+                <label>Gamma (Simulated via SVG/CSS)</label>
+                <input type="range" id="vid-gamma" min="50" max="150" value="100">
+            </div>
+            <div class="input-group">
+                <label>Invert</label>
+                <input type="range" id="vid-invert" min="0" max="100" value="0">
+            </div>
+
+            <h3>Audio Settings (Web Audio API)</h3>
+            <div class="input-group">
+                <label>Master Volume (up to 300%)</label>
+                <input type="range" id="aud-volume" min="0" max="300" value="100">
+            </div>
+            <div class="input-group">
+                <label>Low (Bass)</label>
+                <input type="range" id="aud-low" min="-20" max="20" value="0">
+            </div>
+            <div class="input-group">
+                <label>Mid</label>
+                <input type="range" id="aud-mid" min="-20" max="20" value="0">
+            </div>
+            <div class="input-group">
+                <label>High (Treble)</label>
+                <input type="range" id="aud-high" min="-20" max="20" value="0">
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- State & Elements ---
+    let ws = null;
+    const canvas = document.getElementById('display');
+    const ctx = canvas.getContext('2d');
+    const connectBtn = document.getElementById('connect-btn');
+    const statusText = document.getElementById('status-text');
+    const uiLayer = document.getElementById('ui-layer');
+
+    // --- Resize Handling ---
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // --- Connection Logic ---
+    connectBtn.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.close();
+            return;
+        }
+
+        const url = document.getElementById('wss-url').value;
+        try {
+            ws = new WebSocket(url);
+            ws.binaryType = 'blob'; // Expecting image blobs for video frames
+            
+            ws.onopen = () => {
+                statusText.textContent = "Connected";
+                statusText.classList.add('connected');
+                connectBtn.textContent = "Disconnect";
+                initAudioPipeline(); // Start audio context on user gesture
+            };
+
+            ws.onmessage = async (event) => {
+                if (event.data instanceof Blob) {
+                    // Assuming the server sends raw image frames (JPEG/PNG/WebP)
+                    const imgBitmap = await createImageBitmap(event.data);
+                    ctx.drawImage(imgBitmap, 0, 0, canvas.width, canvas.height);
+                    imgBitmap.close();
+                } else if (typeof event.data === 'string') {
+                    // Handle text-based messages (like server commands)
+                    console.log("Server message:", event.data);
+                }
+            };
+
+            ws.onclose = () => {
+                statusText.textContent = "Disconnected";
+                statusText.classList.remove('connected');
+                connectBtn.textContent = "Connect";
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            };
+
+            ws.onerror = (e) => {
+                statusText.textContent = "Connection Error";
+                statusText.classList.remove('connected');
+                console.error("WebSocket Error:", e);
+            };
+        } catch (err) {
+            statusText.textContent = "Invalid URL";
+        }
+    });
+
+    // --- Pointer Lock & Input Handling ---
+    canvas.addEventListener('click', async () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            if (!document.pointerLockElement) {
+                await canvas.requestPointerLock({
+                    unadjustedMovement: true // Better for gaming
+                });
+            }
+        }
+    });
+
+    function sendInput(payload) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(payload));
+        }
+    }
+
+    // Keyboard (Sends key state)
+    window.addEventListener('keydown', (e) => {
+        // Toggle UI
+        if (e.key.toLowerCase() === 'h' && !document.pointerLockElement) {
+            uiLayer.classList.toggle('hidden');
+        }
+        
+        // Prevent default browser shortcuts if locked in
+        if (document.pointerLockElement) {
+            e.preventDefault();
+        }
+        sendInput({ type: 'keydown', key: e.key, code: e.code, ctrl: e.ctrlKey, shift: e.shiftKey });
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if (document.pointerLockElement) e.preventDefault();
+        sendInput({ type: 'keyup', key: e.key, code: e.code });
+    });
+
+    // Mouse
+    canvas.addEventListener('mousemove', (e) => {
+        if (document.pointerLockElement) {
+            sendInput({ 
+                type: 'mousemove', 
+                movementX: e.movementX, 
+                movementY: e.movementY 
+            });
+        }
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+        if (document.pointerLockElement) {
+            sendInput({ type: 'mousedown', button: e.button });
+        }
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+        if (document.pointerLockElement) {
+            sendInput({ type: 'mouseup', button: e.button });
+        }
+    });
+    
+    // Mouse Wheel
+    canvas.addEventListener('wheel', (e) => {
+        if (document.pointerLockElement) {
+            sendInput({ type: 'wheel', deltaY: e.deltaY });
+        }
+    }, { passive: true });
+
+    // --- Video Settings Logic ---
+    const updateVideoSettings = () => {
+        const b = document.getElementById('vid-brightness').value;
+        const c = document.getElementById('vid-contrast').value;
+        const s = document.getElementById('vid-saturation').value;
+        const i = document.getElementById('vid-invert').value;
+        // Gamma simulation using brightness/contrast balance (CSS doesn't have true gamma)
+        const g = document.getElementById('vid-gamma').value / 100;
+        
+        canvas.style.filter = `
+            brightness(${b}%) 
+            contrast(${c}%) 
+            saturate(${s}%) 
+            invert(${i}%)
+            brightness(${g}) /* Pseudo gamma */
+        `;
+    };
+
+    ['brightness', 'contrast', 'saturation', 'gamma', 'invert'].forEach(id => {
+        document.getElementById(`vid-${id}`).addEventListener('input', updateVideoSettings);
+    });
+
+    // --- Audio Web API Logic (EQ & Gain > 100%) ---
+    let audioCtx, gainNode, lowEQ, midEQ, highEQ;
+    let audioInitialized = false;
+
+    function initAudioPipeline() {
+        if (audioInitialized) return;
+        
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+
+        // Nodes
+        gainNode = audioCtx.createGain();
+        
+        lowEQ = audioCtx.createBiquadFilter();
+        lowEQ.type = 'lowshelf';
+        lowEQ.frequency.value = 250;
+
+        midEQ = audioCtx.createBiquadFilter();
+        midEQ.type = 'peaking';
+        midEQ.frequency.value = 1000;
+        midEQ.Q.value = 1;
+
+        highEQ = audioCtx.createBiquadFilter();
+        highEQ.type = 'highshelf';
+        highEQ.frequency.value = 4000;
+
+        // Routing: Source -> Low -> Mid -> High -> Gain -> Destination
+        // *NOTE: You will need to attach an actual media stream source to this pipeline here*
+        // e.g., const source = audioCtx.createMediaElementSource(document.getElementById('remote-audio'));
+        // source.connect(lowEQ);
+        
+        lowEQ.connect(midEQ);
+        midEQ.connect(highEQ);
+        highEQ.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        audioInitialized = true;
+    }
+
+    const updateAudioSettings = () => {
+        if (!audioInitialized) return;
+        // Volume: 100 on slider = 1.0 (normal). 300 = 3.0 (300%)
+        gainNode.gain.value = document.getElementById('aud-volume').value / 100;
+        lowEQ.gain.value = document.getElementById('aud-low').value;
+        midEQ.gain.value = document.getElementById('aud-mid').value;
+        highEQ.gain.value = document.getElementById('aud-high').value;
+    };
+
+    ['volume', 'low', 'mid', 'high'].forEach(id => {
+        document.getElementById(`aud-${id}`).addEventListener('input', updateAudioSettings);
+    });
+
+</script>
+</body>
+</html>
