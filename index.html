@@ -3,369 +3,490 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WSS Remote Client</title>
+    <title>IndexedDB Web App & Game Launcher</title>
     <style>
         :root {
-            --bg: #0f172a;
-            --panel-bg: rgba(30, 41, 59, 0.9);
-            --text: #f8fafc;
+            --bg-main: #0f172a;
+            --bg-sidebar: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
             --accent: #3b82f6;
-        }
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: system-ui, -apple-system, sans-serif;
-        }
-        
-        /* Main Display Canvas */
-        #display {
-            width: 100vw;
-            height: 100vh;
-            display: block;
-            object-fit: contain;
-            /* Filters applied via JS */
+            --border: rgba(255, 255, 255, 0.1);
         }
 
-        /* Floating UI Panel */
-        #ui-layer {
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg-main);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar File Explorer */
+        #sidebar {
+            width: 300px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        .sidebar-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-header h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+        }
+
+        .upload-btn-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .btn {
+            border: 1px solid var(--border);
+            color: white;
+            background-color: var(--accent);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        .btn-secondary {
+            background-color: #475569;
+        }
+
+        .upload-btn-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        #file-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            list-style: none;
+            margin: 0;
+        }
+
+        .file-item {
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .file-item.active {
+            background: var(--accent);
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-weight: bold;
+            padding: 0 4px;
+            display: none;
+        }
+
+        .file-item:hover .delete-btn {
+            display: inline;
+        }
+
+        /* Main Playback Area */
+        #main-content {
+            flex: 1;
+            position: relative;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #game-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+            /* Target for video modifiers */
+        }
+
+        #placeholder {
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Control Layer Panel */
+        #control-panel {
             position: absolute;
             top: 20px;
-            left: 20px;
+            right: 20px;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid var(--border);
+            padding: 15px;
+            border-radius: 10px;
+            width: 260px;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            max-height: 80vh;
+            overflow-y: auto;
             z-index: 100;
-            transition: opacity 0.3s;
+            transition: opacity 0.2s;
         }
-        #ui-layer.hidden {
+        #control-panel.hidden {
             opacity: 0;
             pointer-events: none;
         }
 
-        .panel {
-            background: var(--panel-bg);
-            padding: 20px;
-            border-radius: 12px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            width: 320px;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        .panel-section {
+            margin-bottom: 15px;
+        }
+        .panel-section h3 {
+            margin: 0 0 8px 0;
+            font-size: 0.95rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 4px;
+            color: var(--text-muted);
         }
 
-        h2, h3 { margin-top: 0; font-size: 1.2rem; }
-        h3 { font-size: 1rem; margin-top: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }
-
-        .input-group { margin-bottom: 12px; }
-        label { display: block; font-size: 0.85rem; margin-bottom: 4px; color: #cbd5e1; }
-        
-        input[type="text"], button {
-            width: 100%;
-            padding: 8px 12px;
-            border-radius: 6px;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(0,0,0,0.2);
-            color: white;
-            box-sizing: border-box;
+        .control-group {
+            margin-bottom: 8px;
         }
-        
-        button {
-            background: var(--accent);
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-            margin-top: 10px;
-            transition: background 0.2s;
-        }
-        button:hover { background: #2563eb; }
-        
-        input[type="range"] { width: 100%; }
-
-        .status {
-            margin-top: 10px;
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
             font-size: 0.8rem;
-            color: #ef4444; /* red by default, green when connected */
+            margin-bottom: 2px;
         }
-        .status.connected { color: #22c55e; }
+        .control-group input[type="range"] {
+            width: 100%;
+            margin: 0;
+        }
 
-        #hide-ui-hint {
+        #ui-hint {
             position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.6);
-            padding: 8px 16px;
+            bottom: 15px;
+            right: 15px;
+            background: rgba(0,0,0,0.7);
+            padding: 6px 12px;
             border-radius: 20px;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             pointer-events: none;
-            z-index: 100;
+            z-index: 99;
+            color: var(--text-muted);
         }
     </style>
 </head>
 <body>
 
-    <canvas id="display"></canvas>
-    
-    <audio id="remote-audio" crossorigin="anonymous"></audio>
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <h2>App Launcher</h2>
+            <div class="upload-btn-wrapper">
+                <button class="btn">📁 Upload Directory</button>
+                <input type="file" id="dir-upload" webkitdirectory directory multiple />
+            </div>
+            <div class="upload-btn-wrapper">
+                <button class="btn btn-secondary">📄 Upload Single HTML</button>
+                <input type="file" id="file-upload" accept=".html,.htm" />
+            </div>
+            <button class="btn" id="clear-db-btn" style="background: #ef4444; margin-top: 5px;">⚠️ Clear Storage</button>
+        </div>
+        <ul id="file-tree"></ul>
+    </div>
 
-    <div id="hide-ui-hint">Press <strong>ESC</strong> to release pointer. Press <strong>H</strong> to toggle settings menu.</div>
+    <div id="main-content">
+        <div id="placeholder">
+            <h3>No Application Running</h3>
+            <p>Upload a folder or file, then select your entry HTML file to boot.</p>
+        </div>
+        <iframe id="game-frame" style="display: none;" allow="autoplay; pointer-lock; keyboard; microphone"></iframe>
+    </div>
 
-    <div id="ui-layer">
-        <div class="panel">
-            <h2>Connection</h2>
-            <div class="input-group">
-                <input type="text" id="wss-url" placeholder="wss://your-server-ip:port" value="wss://">
-            </div>
-            <button id="connect-btn">Connect</button>
-            <div id="status-text" class="status">Disconnected</div>
+    <div id="ui-hint">Press <strong>H</strong> to toggle processing parameters panel.</div>
 
-            <h3>Video Settings</h3>
-            <div class="input-group">
-                <label>Brightness</label>
-                <input type="range" id="vid-brightness" min="0" max="200" value="100">
+    <div id="control-panel">
+        <div class="panel-section">
+            <h3>Video Correction</h3>
+            <div class="control-group">
+                <label><span>Brightness</span><span id="val-brightness">100%</span></label>
+                <input type="range" id="vid-brightness" min="0" max="250" value="100">
             </div>
-            <div class="input-group">
-                <label>Contrast</label>
-                <input type="range" id="vid-contrast" min="0" max="200" value="100">
+            <div class="control-group">
+                <label><span>Contrast</span><span id="val-contrast">100%</span></label>
+                <input type="range" id="vid-contrast" min="0" max="250" value="100">
             </div>
-            <div class="input-group">
-                <label>Saturation</label>
-                <input type="range" id="vid-saturation" min="0" max="200" value="100">
+            <div class="control-group">
+                <label><span>Saturation</span><span id="val-saturation">100%</span></label>
+                <input type="range" id="vid-saturation" min="0" max="250" value="100">
             </div>
-            <div class="input-group">
-                <label>Gamma (Simulated via SVG/CSS)</label>
-                <input type="range" id="vid-gamma" min="50" max="150" value="100">
+            <div class="control-group">
+                <label><span>Gamma Factor</span><span id="val-gamma">1.0x</span></label>
+                <input type="range" id="vid-gamma" min="40" max="180" value="100">
             </div>
-            <div class="input-group">
-                <label>Invert</label>
+            <div class="control-group">
+                <label><span>Invert Spectrum</span><span id="val-invert">0%</span></label>
                 <input type="range" id="vid-invert" min="0" max="100" value="0">
             </div>
+        </div>
 
-            <h3>Audio Settings (Web Audio API)</h3>
-            <div class="input-group">
-                <label>Master Volume (up to 300%)</label>
+        <div class="panel-section">
+            <h3>Audio Engineering</h3>
+            <p style="font-size:0.7rem; color:var(--text-muted); margin: 0 0 8px 0;">Requires client configuration alignment.</p>
+            <div class="control-group">
+                <label><span>Master Gain</span><span id="val-volume">100%</span></label>
                 <input type="range" id="aud-volume" min="0" max="300" value="100">
             </div>
-            <div class="input-group">
-                <label>Low (Bass)</label>
-                <input type="range" id="aud-low" min="-20" max="20" value="0">
+            <div class="control-group">
+                <label><span>Sub-Bass</span><span id="val-low">0 dB</span></label>
+                <input type="range" id="aud-low" min="-24" max="24" value="0">
             </div>
-            <div class="input-group">
-                <label>Mid</label>
-                <input type="range" id="aud-mid" min="-20" max="20" value="0">
+            <div class="control-group">
+                <label><span>Mid Range</span><span id="val-mid">0 dB</span></label>
+                <input type="range" id="aud-mid" min="-24" max="24" value="0">
             </div>
-            <div class="input-group">
-                <label>High (Treble)</label>
-                <input type="range" id="aud-high" min="-20" max="20" value="0">
+            <div class="control-group">
+                <label><span>Treble</span><span id="val-high">0 dB</span></label>
+                <input type="range" id="aud-high" min="-24" max="24" value="0">
             </div>
         </div>
     </div>
 
-<script>
-    // --- State & Elements ---
-    let ws = null;
-    const canvas = document.getElementById('display');
-    const ctx = canvas.getContext('2d');
-    const connectBtn = document.getElementById('connect-btn');
-    const statusText = document.getElementById('status-text');
-    const uiLayer = document.getElementById('ui-layer');
+    <script>
+        // --- Core Application State ---
+        let db = null;
+        const DB_NAME = "LocalAppLauncherDB";
+        const STORE_NAME = "virtual_files";
+        const gameFrame = document.getElementById('game-frame');
+        const placeholder = document.getElementById('placeholder');
+        const fileTree = document.getElementById('file-tree');
+        const controlPanel = document.getElementById('control-panel');
 
-    // --- Resize Handling ---
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+        // --- Initialize IndexedDB Backend ---
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onupgradeneeded = (e) => {
+            db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: "path" });
+            }
+        };
+        request.onsuccess = (e) => {
+            db = e.target.result;
+            renderFileTree();
+        };
+        request.onerror = (e) => console.error("IndexedDB Open Error:", e);
 
-    // --- Connection Logic ---
-    connectBtn.addEventListener('click', () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.close();
-            return;
-        }
+        // --- File Ingestion Handling ---
+        document.getElementById('file-upload').addEventListener('change', (e) => handleUpload(e.target.files, false));
+        document.getElementById('dir-upload').addEventListener('change', (e) => handleUpload(e.target.files, true));
 
-        const url = document.getElementById('wss-url').value;
-        try {
-            ws = new WebSocket(url);
-            ws.binaryType = 'blob'; // Expecting image blobs for video frames
-            
-            ws.onopen = () => {
-                statusText.textContent = "Connected";
-                statusText.classList.add('connected');
-                connectBtn.textContent = "Disconnect";
-                initAudioPipeline(); // Start audio context on user gesture
-            };
+        async function handleUpload(files, isDirectory) {
+            if (!db || files.length === 0) return;
+            const transaction = db.transaction([STORE_NAME], "readwrite");
+            const store = transaction.objectStore(STORE_NAME);
 
-            ws.onmessage = async (event) => {
-                if (event.data instanceof Blob) {
-                    // Assuming the server sends raw image frames (JPEG/PNG/WebP)
-                    const imgBitmap = await createImageBitmap(event.data);
-                    ctx.drawImage(imgBitmap, 0, 0, canvas.width, canvas.height);
-                    imgBitmap.close();
-                } else if (typeof event.data === 'string') {
-                    // Handle text-based messages (like server commands)
-                    console.log("Server message:", event.data);
-                }
-            };
+            for (let file of files) {
+                // Determine sandboxed lookup path
+                const path = isDirectory ? file.webkitRelativePath : file.name;
+                
+                // Skip tracking structural operating system pollution
+                if (path.includes('.DS_Store') || path.includes('__MACOSX')) continue;
 
-            ws.onclose = () => {
-                statusText.textContent = "Disconnected";
-                statusText.classList.remove('connected');
-                connectBtn.textContent = "Connect";
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            };
-
-            ws.onerror = (e) => {
-                statusText.textContent = "Connection Error";
-                statusText.classList.remove('connected');
-                console.error("WebSocket Error:", e);
-            };
-        } catch (err) {
-            statusText.textContent = "Invalid URL";
-        }
-    });
-
-    // --- Pointer Lock & Input Handling ---
-    canvas.addEventListener('click', async () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            if (!document.pointerLockElement) {
-                await canvas.requestPointerLock({
-                    unadjustedMovement: true // Better for gaming
+                const blob = new Blob([file], { type: file.type });
+                store.put({
+                    path: path,
+                    name: file.name,
+                    blob: blob,
+                    mimeType: file.type || getMimeTypeByExtension(file.name)
                 });
             }
-        }
-    });
 
-    function sendInput(payload) {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify(payload));
+            transaction.oncomplete = () => {
+                renderFileTree();
+                alert("Assets successfully indexed to browser local database.");
+            };
         }
-    }
 
-    // Keyboard (Sends key state)
-    window.addEventListener('keydown', (e) => {
-        // Toggle UI
-        if (e.key.toLowerCase() === 'h' && !document.pointerLockElement) {
-            uiLayer.classList.toggle('hidden');
+        // --- Render UI Navigator ---
+        function renderFileTree() {
+            fileTree.innerHTML = "";
+            if (!db) return;
+
+            const transaction = db.transaction([STORE_NAME], "readonly");
+            const store = transaction.objectStore(STORE_NAME);
+            
+            store.getAll().onsuccess = (e) => {
+                const allFiles = e.target.result;
+                // Highlight/filter runnable targets (HTML files)
+                const launchable = allFiles.filter(f => f.name.endsWith('.html') || f.name.endsWith('.htm'));
+
+                if (launchable.length === 0) {
+                    fileTree.innerHTML = `<li style="padding:10px; color:var(--text-muted); font-size:0.8rem;">No execution maps loaded.</li>`;
+                    return;
+                }
+
+                launchable.forEach(file => {
+                    const li = document.createElement('li');
+                    li.className = 'file-item';
+                    li.innerHTML = `<span>📄 ${file.path}</span><button class="delete-btn" data-path="${file.path}">×</button>`;
+                    
+                    li.addEventListener('click', (e) => {
+                        if (e.target.className === 'delete-btn') return;
+                        document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
+                        li.classList.add('active');
+                        bootVirtualApplication(file.path, allFiles);
+                    });
+
+                    li.querySelector('.delete-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        deleteAsset(file.path);
+                    });
+
+                    fileTree.appendChild(li);
+                });
+            };
         }
-        
-        // Prevent default browser shortcuts if locked in
-        if (document.pointerLockElement) {
-            e.preventDefault();
-        }
-        sendInput({ type: 'keydown', key: e.key, code: e.code, ctrl: e.ctrlKey, shift: e.shiftKey });
-    });
 
-    window.addEventListener('keyup', (e) => {
-        if (document.pointerLockElement) e.preventDefault();
-        sendInput({ type: 'keyup', key: e.key, code: e.code });
-    });
+        // --- Execution Sandbox Router (The Core Engine) ---
+        function bootVirtualApplication(entryPath, allFiles) {
+            placeholder.style.display = 'none';
+            gameFrame.style.display = 'block';
 
-    // Mouse
-    canvas.addEventListener('mousemove', (e) => {
-        if (document.pointerLockElement) {
-            sendInput({ 
-                type: 'mousemove', 
-                movementX: e.movementX, 
-                movementY: e.movementY 
+            // Convert all filesystem assets into virtual object-mapping reference lookups
+            const virtualFileSystem = {};
+            allFiles.forEach(file => {
+                virtualFileSystem[file.path] = URL.createObjectURL(file.blob);
             });
+
+            const entryBlob = allFiles.find(f => f.path === entryPath).blob;
+            
+            // Read entry HTML, intercept references dynamically 
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                let htmlContent = e.target.result;
+
+                // Relative path pointer resolution algorithm
+                const currentDir = entryPath.substring(0, entryPath.lastIndexOf('/'));
+
+                // Intercept script paths, stylesheets, images, and assemblies (.wasm)
+                // Swap relative pointers to browser local memory Blobs
+                for (const [realPath, blobUrl] of Object.entries(virtualFileSystem)) {
+                    let relativeToken = realPath;
+                    if (currentDir && realPath.startsWith(currentDir + '/')) {
+                        relativeToken = realPath.substring(currentDir.length + 1);
+                    }
+                    
+                    // Direct replace string mappings safely via escaped RegExp patterns
+                    const safeToken = relativeToken.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                    const re = new RegExp(`(["'])(./)?${safeToken}(["'])`, 'g');
+                    htmlContent = htmlContent.replace(re, `$1${blobUrl}$3`);
+                }
+
+                // Inject sandbox patch configuration context directly 
+                const modifiedBlob = new Blob([htmlContent], { type: 'text/html' });
+                gameFrame.src = URL.createObjectURL(modifiedBlob);
+            };
+            
+            reader.readAsText(entryBlob);
         }
-    });
 
-    canvas.addEventListener('mousedown', (e) => {
-        if (document.pointerLockElement) {
-            sendInput({ type: 'mousedown', button: e.button });
+        // --- Destruction Routines ---
+        function deleteAsset(path) {
+            const transaction = db.transaction([STORE_NAME], "readwrite");
+            transaction.objectStore(STORE_NAME).delete(path);
+            transaction.oncomplete = () => renderFileTree();
         }
-    });
 
-    canvas.addEventListener('mouseup', (e) => {
-        if (document.pointerLockElement) {
-            sendInput({ type: 'mouseup', button: e.button });
+        document.getElementById('clear-db-btn').addEventListener('click', () => {
+            if (confirm("Confirm database wipe? All cached offline files will be purged.")) {
+                const transaction = db.transaction([STORE_NAME], "readwrite");
+                transaction.objectStore(STORE_NAME).clear();
+                transaction.oncomplete = () => {
+                    gameFrame.src = "about:blank";
+                    gameFrame.style.display = 'none';
+                    placeholder.style.display = 'block';
+                    renderFileTree();
+                };
+            }
+        });
+
+        // --- UI Controller Layer Mapping ---
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'h') {
+                controlPanel.classList.toggle('hidden');
+            }
+        });
+
+        // Dynamic Filter Compiling Matrix
+        const applyVideoFilters = () => {
+            const b = document.getElementById('vid-brightness').value;
+            const c = document.getElementById('vid-contrast').value;
+            const s = document.getElementById('vid-saturation').value;
+            const i = document.getElementById('vid-invert').value;
+            const g = document.getElementById('vid-gamma').value / 100;
+
+            document.getElementById('val-brightness').textContent = `${b}%`;
+            document.getElementById('val-contrast').textContent = `${c}%`;
+            document.getElementById('val-saturation').textContent = `${s}%`;
+            document.getElementById('val-gamma').textContent = `${g.toFixed(1)}x`;
+            document.getElementById('val-invert').textContent = `${i}%`;
+
+            gameFrame.style.filter = `
+                brightness(${b}%) 
+                contrast(${c}%) 
+                saturate(${s}%) 
+                invert(${i}%)
+                brightness(${g})
+            `;
+        };
+
+        ['brightness', 'contrast', 'saturation', 'gamma', 'invert'].forEach(id => {
+            document.getElementById(`vid-${id}`).addEventListener('input', applyVideoFilters);
+        });
+
+        // --- Fallback Type Inference Helper ---
+        function getMimeTypeByExtension(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const map = {
+                'html': 'text/html', 'htm': 'text/html',
+                'js': 'application/javascript', 'json': 'application/json',
+                'css': 'text/css', 'wasm': 'application/wasm',
+                'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                'gif': 'image/gif', 'svg': 'image/svg+xml'
+            };
+            return map[ext] || 'application/octet-stream';
         }
-    });
-    
-    // Mouse Wheel
-    canvas.addEventListener('wheel', (e) => {
-        if (document.pointerLockElement) {
-            sendInput({ type: 'wheel', deltaY: e.deltaY });
-        }
-    }, { passive: true });
-
-    // --- Video Settings Logic ---
-    const updateVideoSettings = () => {
-        const b = document.getElementById('vid-brightness').value;
-        const c = document.getElementById('vid-contrast').value;
-        const s = document.getElementById('vid-saturation').value;
-        const i = document.getElementById('vid-invert').value;
-        // Gamma simulation using brightness/contrast balance (CSS doesn't have true gamma)
-        const g = document.getElementById('vid-gamma').value / 100;
-        
-        canvas.style.filter = `
-            brightness(${b}%) 
-            contrast(${c}%) 
-            saturate(${s}%) 
-            invert(${i}%)
-            brightness(${g}) /* Pseudo gamma */
-        `;
-    };
-
-    ['brightness', 'contrast', 'saturation', 'gamma', 'invert'].forEach(id => {
-        document.getElementById(`vid-${id}`).addEventListener('input', updateVideoSettings);
-    });
-
-    // --- Audio Web API Logic (EQ & Gain > 100%) ---
-    let audioCtx, gainNode, lowEQ, midEQ, highEQ;
-    let audioInitialized = false;
-
-    function initAudioPipeline() {
-        if (audioInitialized) return;
-        
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        audioCtx = new AudioContext();
-
-        // Nodes
-        gainNode = audioCtx.createGain();
-        
-        lowEQ = audioCtx.createBiquadFilter();
-        lowEQ.type = 'lowshelf';
-        lowEQ.frequency.value = 250;
-
-        midEQ = audioCtx.createBiquadFilter();
-        midEQ.type = 'peaking';
-        midEQ.frequency.value = 1000;
-        midEQ.Q.value = 1;
-
-        highEQ = audioCtx.createBiquadFilter();
-        highEQ.type = 'highshelf';
-        highEQ.frequency.value = 4000;
-
-        // Routing: Source -> Low -> Mid -> High -> Gain -> Destination
-        // *NOTE: You will need to attach an actual media stream source to this pipeline here*
-        // e.g., const source = audioCtx.createMediaElementSource(document.getElementById('remote-audio'));
-        // source.connect(lowEQ);
-        
-        lowEQ.connect(midEQ);
-        midEQ.connect(highEQ);
-        highEQ.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-
-        audioInitialized = true;
-    }
-
-    const updateAudioSettings = () => {
-        if (!audioInitialized) return;
-        // Volume: 100 on slider = 1.0 (normal). 300 = 3.0 (300%)
-        gainNode.gain.value = document.getElementById('aud-volume').value / 100;
-        lowEQ.gain.value = document.getElementById('aud-low').value;
-        midEQ.gain.value = document.getElementById('aud-mid').value;
-        highEQ.gain.value = document.getElementById('aud-high').value;
-    };
-
-    ['volume', 'low', 'mid', 'high'].forEach(id => {
-        document.getElementById(`aud-${id}`).addEventListener('input', updateAudioSettings);
-    });
-
-</script>
+    </script>
 </body>
 </html>
