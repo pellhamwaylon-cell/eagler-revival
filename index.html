@@ -34,6 +34,13 @@
             flex-direction: column;
             box-sizing: border-box;
             z-index: 10;
+            transition: transform 0.2s ease, width 0.2s;
+        }
+
+        #sidebar.hidden {
+            transform: translateX(-100%);
+            position: absolute;
+            height: 100%;
         }
 
         .sidebar-header {
@@ -44,6 +51,9 @@
         .sidebar-header h2 {
             margin: 0 0 10px 0;
             font-size: 1.2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .upload-btn-wrapper {
@@ -67,9 +77,9 @@
             box-sizing: border-box;
             text-align: center;
         }
-        .btn-secondary {
-            background-color: #475569;
-        }
+        .btn-secondary { background-color: #475569; }
+        .btn-green { background-color: #10b981; margin-bottom: 8px; }
+        .btn-red { background-color: #ef4444; margin-top: 5px; }
 
         .upload-btn-wrapper input[type=file] {
             font-size: 100px;
@@ -78,6 +88,14 @@
             top: 0;
             opacity: 0;
             cursor: pointer;
+        }
+
+        #upload-status {
+            font-size: 0.8rem;
+            color: #10b981;
+            margin-bottom: 5px;
+            font-weight: bold;
+            text-align: center;
         }
 
         #file-tree {
@@ -102,13 +120,8 @@
             text-overflow: ellipsis;
         }
 
-        .file-item:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .file-item.active {
-            background: var(--accent);
-        }
+        .file-item:hover { background: rgba(255, 255, 255, 0.05); }
+        .file-item.active { background: var(--accent); }
 
         .delete-btn {
             background: none;
@@ -119,10 +132,7 @@
             padding: 0 4px;
             display: none;
         }
-
-        .file-item:hover .delete-btn {
-            display: inline;
-        }
+        .file-item:hover .delete-btn { display: inline; }
 
         /* Main Playback Area */
         #main-content {
@@ -139,7 +149,7 @@
             height: 100%;
             border: none;
             display: block;
-            /* Target for video modifiers */
+            background-color: #000;
         }
 
         #placeholder {
@@ -162,16 +172,15 @@
             max-height: 80vh;
             overflow-y: auto;
             z-index: 100;
-            transition: opacity 0.2s;
+            transition: opacity 0.2s, transform 0.2s;
         }
         #control-panel.hidden {
             opacity: 0;
+            transform: translateY(-10px);
             pointer-events: none;
         }
 
-        .panel-section {
-            margin-bottom: 15px;
-        }
+        .panel-section { margin-bottom: 15px; }
         .panel-section h3 {
             margin: 0 0 8px 0;
             font-size: 0.95rem;
@@ -180,9 +189,7 @@
             color: var(--text-muted);
         }
 
-        .control-group {
-            margin-bottom: 8px;
-        }
+        .control-group { margin-bottom: 8px; }
         .control-group label {
             display: flex;
             justify-content: space-between;
@@ -194,7 +201,7 @@
             margin: 0;
         }
 
-        #ui-hint {
+        .ui-hints {
             position: absolute;
             bottom: 15px;
             right: 15px;
@@ -205,6 +212,7 @@
             pointer-events: none;
             z-index: 99;
             color: var(--text-muted);
+            text-align: right;
         }
     </style>
 </head>
@@ -212,7 +220,9 @@
 
     <div id="sidebar">
         <div class="sidebar-header">
-            <h2>App Launcher</h2>
+            <h2>Launcher</h2>
+            <button class="btn btn-green" id="fullscreen-btn">⛶ Fullscreen Game</button>
+            <div id="upload-status"></div>
             <div class="upload-btn-wrapper">
                 <button class="btn">📁 Upload Directory</button>
                 <input type="file" id="dir-upload" webkitdirectory directory multiple />
@@ -221,7 +231,7 @@
                 <button class="btn btn-secondary">📄 Upload Single HTML</button>
                 <input type="file" id="file-upload" accept=".html,.htm" />
             </div>
-            <button class="btn" id="clear-db-btn" style="background: #ef4444; margin-top: 5px;">⚠️ Clear Storage</button>
+            <button class="btn btn-red" id="clear-db-btn">⚠️ Clear Storage</button>
         </div>
         <ul id="file-tree"></ul>
     </div>
@@ -231,12 +241,21 @@
             <h3>No Application Running</h3>
             <p>Upload a folder or file, then select your entry HTML file to boot.</p>
         </div>
-        <iframe id="game-frame" style="display: none;" allow="autoplay; pointer-lock; keyboard; microphone"></iframe>
+        <iframe id="game-frame" style="display: none;" 
+            allow="cross-origin-isolated; autoplay; pointer-lock; keyboard; microphone; fullscreen" 
+            allowfullscreen="true" 
+            webkitallowfullscreen="true" 
+            mozallowfullscreen="true">
+        </iframe>
     </div>
 
-    <div id="ui-hint">Press <strong>H</strong> to toggle processing parameters panel.</div>
+    <div class="ui-hints">
+        Press <strong>ESC</strong> to unlock mouse<br>
+        Press <strong>H</strong> for Video/Audio Panel<br>
+        Press <strong>J</strong> to toggle Sidebar
+    </div>
 
-    <div id="control-panel">
+    <div id="control-panel" class="hidden">
         <div class="panel-section">
             <h3>Video Correction</h3>
             <div class="control-group">
@@ -260,27 +279,6 @@
                 <input type="range" id="vid-invert" min="0" max="100" value="0">
             </div>
         </div>
-
-        <div class="panel-section">
-            <h3>Audio Engineering</h3>
-            <p style="font-size:0.7rem; color:var(--text-muted); margin: 0 0 8px 0;">Requires client configuration alignment.</p>
-            <div class="control-group">
-                <label><span>Master Gain</span><span id="val-volume">100%</span></label>
-                <input type="range" id="aud-volume" min="0" max="300" value="100">
-            </div>
-            <div class="control-group">
-                <label><span>Sub-Bass</span><span id="val-low">0 dB</span></label>
-                <input type="range" id="aud-low" min="-24" max="24" value="0">
-            </div>
-            <div class="control-group">
-                <label><span>Mid Range</span><span id="val-mid">0 dB</span></label>
-                <input type="range" id="aud-mid" min="-24" max="24" value="0">
-            </div>
-            <div class="control-group">
-                <label><span>Treble</span><span id="val-high">0 dB</span></label>
-                <input type="range" id="aud-high" min="-24" max="24" value="0">
-            </div>
-        </div>
     </div>
 
     <script>
@@ -292,6 +290,8 @@
         const placeholder = document.getElementById('placeholder');
         const fileTree = document.getElementById('file-tree');
         const controlPanel = document.getElementById('control-panel');
+        const sidebar = document.getElementById('sidebar');
+        const statusText = document.getElementById('upload-status');
 
         // --- Initialize IndexedDB Backend ---
         const request = indexedDB.open(DB_NAME, 1);
@@ -307,35 +307,56 @@
         };
         request.onerror = (e) => console.error("IndexedDB Open Error:", e);
 
-        // --- File Ingestion Handling ---
+        // --- Queue-Based File Ingestion (Performance Fix) ---
         document.getElementById('file-upload').addEventListener('change', (e) => handleUpload(e.target.files, false));
         document.getElementById('dir-upload').addEventListener('change', (e) => handleUpload(e.target.files, true));
 
-        async function handleUpload(files, isDirectory) {
+        function handleUpload(files, isDirectory) {
             if (!db || files.length === 0) return;
-            const transaction = db.transaction([STORE_NAME], "readwrite");
-            const store = transaction.objectStore(STORE_NAME);
+            
+            const totalFiles = files.length;
+            let currentIndex = 0;
+            const batchSize = 50; // Process 50 files per animation frame to prevent freezing
 
-            for (let file of files) {
-                // Determine sandboxed lookup path
-                const path = isDirectory ? file.webkitRelativePath : file.name;
+            statusText.textContent = `Queuing ${totalFiles} files...`;
+
+            function processNextBatch() {
+                const transaction = db.transaction([STORE_NAME], "readwrite");
+                const store = transaction.objectStore(STORE_NAME);
                 
-                // Skip tracking structural operating system pollution
-                if (path.includes('.DS_Store') || path.includes('__MACOSX')) continue;
+                const end = Math.min(currentIndex + batchSize, totalFiles);
+                
+                for (let i = currentIndex; i < end; i++) {
+                    const file = files[i];
+                    // Path resolver accounts for single files vs folders
+                    const path = (isDirectory && file.webkitRelativePath) ? file.webkitRelativePath : file.name;
+                    
+                    if (path.includes('.DS_Store') || path.includes('__MACOSX')) continue;
 
-                const blob = new Blob([file], { type: file.type });
-                store.put({
-                    path: path,
-                    name: file.name,
-                    blob: blob,
-                    mimeType: file.type || getMimeTypeByExtension(file.name)
-                });
+                    const blob = new Blob([file], { type: file.type });
+                    store.put({
+                        path: path,
+                        name: file.name,
+                        blob: blob,
+                        mimeType: file.type || getMimeTypeByExtension(file.name)
+                    });
+                }
+
+                transaction.oncomplete = () => {
+                    currentIndex = end;
+                    statusText.textContent = `Uploaded ${currentIndex} / ${totalFiles}`;
+                    
+                    if (currentIndex < totalFiles) {
+                        // Yield to main thread, then process next batch
+                        requestAnimationFrame(processNextBatch);
+                    } else {
+                        statusText.textContent = ""; // Clear status
+                        renderFileTree();
+                    }
+                };
             }
-
-            transaction.oncomplete = () => {
-                renderFileTree();
-                alert("Assets successfully indexed to browser local database.");
-            };
+            
+            processNextBatch();
         }
 
         // --- Render UI Navigator ---
@@ -348,7 +369,6 @@
             
             store.getAll().onsuccess = (e) => {
                 const allFiles = e.target.result;
-                // Highlight/filter runnable targets (HTML files)
                 const launchable = allFiles.filter(f => f.name.endsWith('.html') || f.name.endsWith('.htm'));
 
                 if (launchable.length === 0) {
@@ -356,16 +376,20 @@
                     return;
                 }
 
-                launchable.forEach(file => {
+                // Sort alphabetically
+                launchable.sort((a, b) => a.path.localeCompare(b.path)).forEach(file => {
                     const li = document.createElement('li');
                     li.className = 'file-item';
-                    li.innerHTML = `<span>📄 ${file.path}</span><button class="delete-btn" data-path="${file.path}">×</button>`;
+                    li.innerHTML = `<span>📄 ${file.name}</span><button class="delete-btn" data-path="${file.path}">×</button>`;
+                    li.title = file.path; // Hover to see full path
                     
                     li.addEventListener('click', (e) => {
                         if (e.target.className === 'delete-btn') return;
                         document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
                         li.classList.add('active');
                         bootVirtualApplication(file.path, allFiles);
+                        // Auto-hide sidebar to give game room
+                        if(window.innerWidth < 1000) sidebar.classList.add('hidden');
                     });
 
                     li.querySelector('.delete-btn').addEventListener('click', (e) => {
@@ -382,8 +406,10 @@
         function bootVirtualApplication(entryPath, allFiles) {
             placeholder.style.display = 'none';
             gameFrame.style.display = 'block';
+            
+            // Force focus so the game grabs keyboard events natively
+            gameFrame.focus();
 
-            // Convert all filesystem assets into virtual object-mapping reference lookups
             const virtualFileSystem = {};
             allFiles.forEach(file => {
                 virtualFileSystem[file.path] = URL.createObjectURL(file.blob);
@@ -391,35 +417,46 @@
 
             const entryBlob = allFiles.find(f => f.path === entryPath).blob;
             
-            // Read entry HTML, intercept references dynamically 
             const reader = new FileReader();
             reader.onload = function(e) {
                 let htmlContent = e.target.result;
 
-                // Relative path pointer resolution algorithm
-                const currentDir = entryPath.substring(0, entryPath.lastIndexOf('/'));
+                // Path resolution logic fixed for single-files without parent directories
+                const hasDir = entryPath.includes('/');
+                const currentDir = hasDir ? entryPath.substring(0, entryPath.lastIndexOf('/')) : '';
 
-                // Intercept script paths, stylesheets, images, and assemblies (.wasm)
-                // Swap relative pointers to browser local memory Blobs
                 for (const [realPath, blobUrl] of Object.entries(virtualFileSystem)) {
                     let relativeToken = realPath;
                     if (currentDir && realPath.startsWith(currentDir + '/')) {
                         relativeToken = realPath.substring(currentDir.length + 1);
                     }
                     
-                    // Direct replace string mappings safely via escaped RegExp patterns
                     const safeToken = relativeToken.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
                     const re = new RegExp(`(["'])(./)?${safeToken}(["'])`, 'g');
                     htmlContent = htmlContent.replace(re, `$1${blobUrl}$3`);
                 }
 
-                // Inject sandbox patch configuration context directly 
                 const modifiedBlob = new Blob([htmlContent], { type: 'text/html' });
                 gameFrame.src = URL.createObjectURL(modifiedBlob);
             };
             
             reader.readAsText(entryBlob);
         }
+
+        // --- Fullscreen API Request ---
+        document.getElementById('fullscreen-btn').addEventListener('click', () => {
+            if (gameFrame.style.display === 'none') {
+                alert("Launch a game first before going fullscreen.");
+                return;
+            }
+            if (gameFrame.requestFullscreen) {
+                gameFrame.requestFullscreen();
+            } else if (gameFrame.webkitRequestFullscreen) { /* Safari */
+                gameFrame.webkitRequestFullscreen();
+            }
+            // Forcing focus after fullscreen ensures pointerlock engages easily
+            setTimeout(() => gameFrame.focus(), 100); 
+        });
 
         // --- Destruction Routines ---
         function deleteAsset(path) {
@@ -441,14 +478,31 @@
             }
         });
 
-        // --- UI Controller Layer Mapping ---
+        // --- UI Controller Layer Mapping (Interaction Lockouts) ---
         window.addEventListener('keydown', (e) => {
+            // CRITICAL: Prevent menus from opening if the user is playing the game
+            const isPlaying = document.pointerLockElement !== null || 
+                              document.fullscreenElement !== null ||
+                              document.activeElement === gameFrame;
+            
+            if (isPlaying) return; // Ignore keys if focused on game frame
+
             if (e.key.toLowerCase() === 'h') {
                 controlPanel.classList.toggle('hidden');
             }
+            if (e.key.toLowerCase() === 'j') {
+                sidebar.classList.toggle('hidden');
+            }
         });
 
-        // Dynamic Filter Compiling Matrix
+        // Listen for clicks outside the frame to re-enable menu toggles
+        window.addEventListener('click', () => {
+            if (document.activeElement !== gameFrame) {
+                // Focus left the game iframe, hotkeys will work again natively
+            }
+        });
+
+        // --- Video Signal Filters ---
         const applyVideoFilters = () => {
             const b = document.getElementById('vid-brightness').value;
             const c = document.getElementById('vid-contrast').value;
@@ -475,7 +529,7 @@
             document.getElementById(`vid-${id}`).addEventListener('input', applyVideoFilters);
         });
 
-        // --- Fallback Type Inference Helper ---
+        // --- Mime Type Inference Helper ---
         function getMimeTypeByExtension(filename) {
             const ext = filename.split('.').pop().toLowerCase();
             const map = {
