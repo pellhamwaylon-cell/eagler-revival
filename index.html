@@ -6,221 +6,114 @@
     <title>IndexedDB Web App & Game Launcher</title>
     <style>
         :root {
-            --bg-main: #0f172a;
-            --bg-sidebar: #1e293b;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #3b82f6;
+            /* Synced to Chrome OS theme */
+            --bg-main: #202124;
+            --bg-sidebar: #292a2d;
+            --text-main: #e8eaed;
+            --text-muted: #9aa0a6;
+            --accent: #8ab4f8;
             --border: rgba(255, 255, 255, 0.1);
         }
 
         body {
-            margin: 0;
-            padding: 0;
-            font-family: system-ui, -apple-system, sans-serif;
-            background: var(--bg-main);
-            color: var(--text-main);
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
+            margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-main); color: var(--text-main);
+            display: flex; height: 100vh; overflow: hidden;
         }
+
+        /* Boss Key - Fake Google */
+        #boss-layer {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #fff; z-index: 99999; display: none;
+            flex-direction: column; align-items: center; padding-top: 15vh; font-family: Arial, sans-serif;
+        }
+        .google-logo { font-size: 80px; font-weight: bold; letter-spacing: -3px; margin-bottom: 20px; }
+        .g-blue { color: #4285f4; } .g-red { color: #ea4335; } .g-yellow { color: #fbbc05; } .g-green { color: #34a853; }
+        .search-bar { width: 500px; height: 44px; border: 1px solid #dfe1e5; border-radius: 24px; margin-bottom: 30px; }
 
         /* Sidebar File Explorer */
         #sidebar {
-            width: 300px;
-            background: var(--bg-sidebar);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            box-sizing: border-box;
-            z-index: 10;
-            transition: transform 0.2s ease, width 0.2s;
+            width: 300px; background: var(--bg-sidebar); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; box-sizing: border-box;
+            z-index: 10; transition: transform 0.2s ease, width 0.2s;
         }
+        #sidebar.hidden { transform: translateX(-100%); position: absolute; height: 100%; }
 
-        #sidebar.hidden {
-            transform: translateX(-100%);
-            position: absolute;
-            height: 100%;
-        }
+        .sidebar-header { padding: 15px; border-bottom: 1px solid var(--border); }
+        .sidebar-header h2 { margin: 0 0 10px 0; font-size: 1.2rem; display: flex; justify-content: space-between; align-items: center; }
 
-        .sidebar-header {
-            padding: 15px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .sidebar-header h2 {
-            margin: 0 0 10px 0;
-            font-size: 1.2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .upload-btn-wrapper {
-            position: relative;
-            overflow: hidden;
-            display: inline-block;
-            width: 100%;
-            margin-bottom: 8px;
-        }
-
+        .upload-btn-wrapper { position: relative; overflow: hidden; display: inline-block; width: 100%; margin-bottom: 8px; }
         .btn {
-            border: 1px solid var(--border);
-            color: white;
-            background-color: var(--accent);
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            font-weight: bold;
-            width: 100%;
-            cursor: pointer;
-            box-sizing: border-box;
-            text-align: center;
+            border: 1px solid var(--border); color: #202124; background-color: var(--accent);
+            padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; font-weight: bold;
+            width: 100%; cursor: pointer; box-sizing: border-box; text-align: center;
         }
-        .btn-secondary { background-color: #475569; }
-        .btn-green { background-color: #10b981; margin-bottom: 8px; }
-        .btn-red { background-color: #ef4444; margin-top: 5px; }
+        .btn-secondary { background-color: #3c4043; color: white; }
+        .btn-green { background-color: #87c095; margin-bottom: 8px; }
+        .btn-red { background-color: #ff4a4a; margin-top: 5px; color: white; }
+        .upload-btn-wrapper input[type=file] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; }
 
-        .upload-btn-wrapper input[type=file] {
-            font-size: 100px;
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
+        #upload-status { font-size: 0.8rem; color: #87c095; margin-bottom: 5px; font-weight: bold; text-align: center; }
 
-        #upload-status {
-            font-size: 0.8rem;
-            color: #10b981;
-            margin-bottom: 5px;
-            font-weight: bold;
-            text-align: center;
+        #file-tree { flex: 1; overflow-y: auto; padding: 10px; list-style: none; margin: 0; }
+        
+        /* Folder UI Styles */
+        .folder-group { margin-bottom: 10px; }
+        .folder-title {
+            font-size: 0.9rem; font-weight: bold; padding: 5px; color: var(--accent);
+            cursor: pointer; border-bottom: 1px solid var(--border); margin-bottom: 5px;
         }
-
-        #file-tree {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px;
-            list-style: none;
-            margin: 0;
-        }
+        .folder-content { padding-left: 10px; display: block; }
 
         .file-item {
-            padding: 6px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-
         .file-item:hover { background: rgba(255, 255, 255, 0.05); }
-        .file-item.active { background: var(--accent); }
-
-        .delete-btn {
-            background: none;
-            border: none;
-            color: #ef4444;
-            cursor: pointer;
-            font-weight: bold;
-            padding: 0 4px;
-            display: none;
-        }
+        .file-item.active { background: var(--accent); color: #000; }
+        .delete-btn { background: none; border: none; color: #ff4a4a; cursor: pointer; font-weight: bold; padding: 0 4px; display: none; }
         .file-item:hover .delete-btn { display: inline; }
 
         /* Main Playback Area */
-        #main-content {
-            flex: 1;
-            position: relative;
-            background: #000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #game-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-            display: block;
-            background-color: #000;
-        }
-
-        #placeholder {
-            color: var(--text-muted);
-            text-align: center;
-        }
+        #main-content { flex: 1; position: relative; background: #000; display: flex; align-items: center; justify-content: center; }
+        #game-frame { width: 100%; height: 100%; border: none; display: block; background-color: #000; }
+        #placeholder { color: var(--text-muted); text-align: center; }
 
         /* Control Layer Panel */
         #control-panel {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(30, 41, 59, 0.95);
-            border: 1px solid var(--border);
-            padding: 15px;
-            border-radius: 10px;
-            width: 260px;
-            backdrop-filter: blur(8px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            max-height: 80vh;
-            overflow-y: auto;
-            z-index: 100;
+            position: absolute; top: 20px; right: 20px; background: rgba(32, 33, 36, 0.95);
+            border: 1px solid var(--border); padding: 15px; border-radius: 10px; width: 260px;
+            backdrop-filter: blur(8px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 100;
             transition: opacity 0.2s, transform 0.2s;
         }
-        #control-panel.hidden {
-            opacity: 0;
-            transform: translateY(-10px);
-            pointer-events: none;
-        }
-
+        #control-panel.hidden { opacity: 0; transform: translateY(-10px); pointer-events: none; }
         .panel-section { margin-bottom: 15px; }
-        .panel-section h3 {
-            margin: 0 0 8px 0;
-            font-size: 0.95rem;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 4px;
-            color: var(--text-muted);
-        }
-
+        .panel-section h3 { margin: 0 0 8px 0; font-size: 0.95rem; border-bottom: 1px solid var(--border); padding-bottom: 4px; color: var(--text-muted); }
         .control-group { margin-bottom: 8px; }
-        .control-group label {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.8rem;
-            margin-bottom: 2px;
-        }
-        .control-group input[type="range"] {
-            width: 100%;
-            margin: 0;
-        }
+        .control-group label { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px; }
+        .control-group input[type="range"] { width: 100%; margin: 0; }
 
         .ui-hints {
-            position: absolute;
-            bottom: 15px;
-            right: 15px;
-            background: rgba(0,0,0,0.7);
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            pointer-events: none;
-            z-index: 99;
-            color: var(--text-muted);
-            text-align: right;
+            position: absolute; bottom: 15px; right: 15px; background: rgba(0,0,0,0.7);
+            padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; pointer-events: none;
+            z-index: 99; color: var(--text-muted); text-align: right;
         }
     </style>
 </head>
 <body>
 
+    <!-- Stealth Layer -->
+    <div id="boss-layer">
+        <div class="google-logo">
+            <span class="g-blue">G</span><span class="g-red">o</span><span class="g-yellow">o</span><span class="g-blue">g</span><span class="g-green">l</span><span class="g-red">e</span>
+        </div>
+        <div class="search-bar"></div>
+    </div>
+
     <div id="sidebar">
         <div class="sidebar-header">
-            <h2>Launcher</h2>
+            <h2>System Launcher</h2>
             <button class="btn btn-green" id="fullscreen-btn">⛶ Fullscreen Game</button>
             <div id="upload-status"></div>
             <div class="upload-btn-wrapper">
@@ -243,15 +136,14 @@
         </div>
         <iframe id="game-frame" style="display: none;" 
             allow="cross-origin-isolated; autoplay; pointer-lock; keyboard; microphone; fullscreen" 
-            allowfullscreen="true" 
-            webkitallowfullscreen="true" 
-            mozallowfullscreen="true">
+            allowfullscreen="true">
         </iframe>
     </div>
 
     <div class="ui-hints">
+        Press <strong>~</strong> for Stealth Cloak<br>
         Press <strong>ESC</strong> to unlock mouse<br>
-        Press <strong>H</strong> for Video/Audio Panel<br>
+        Press <strong>H</strong> for Video Panel<br>
         Press <strong>J</strong> to toggle Sidebar
     </div>
 
@@ -293,6 +185,34 @@
         const sidebar = document.getElementById('sidebar');
         const statusText = document.getElementById('upload-status');
 
+        // --- Boss Key Logic ---
+        let isCloaked = false;
+        function toggleBossKey() {
+            isCloaked = !isCloaked;
+            document.getElementById('boss-layer').style.display = isCloaked ? 'flex' : 'none';
+            document.title = isCloaked ? "Google" : "IndexedDB Launcher";
+        }
+
+        // Listen for keys on the main window
+        window.addEventListener('keydown', (e) => {
+            if (e.key === '`') toggleBossKey();
+            if (isCloaked) return; // Block other hotkeys if cloaked
+
+            // UI Toggles (Only if game frame doesn't have focus)
+            const isPlaying = document.pointerLockElement !== null || document.activeElement === gameFrame;
+            if (!isPlaying) {
+                if (e.key.toLowerCase() === 'h') controlPanel.classList.toggle('hidden');
+                if (e.key.toLowerCase() === 'j') sidebar.classList.toggle('hidden');
+            }
+        });
+
+        // Listen for messages FROM the injected iframe game script
+        window.addEventListener('message', (e) => {
+            if (e.data === 'bossKeyTrigger') {
+                toggleBossKey();
+            }
+        });
+
         // --- Initialize IndexedDB Backend ---
         const request = indexedDB.open(DB_NAME, 1);
         request.onupgradeneeded = (e) => {
@@ -301,43 +221,34 @@
                 db.createObjectStore(STORE_NAME, { keyPath: "path" });
             }
         };
-        request.onsuccess = (e) => {
-            db = e.target.result;
-            renderFileTree();
-        };
+        request.onsuccess = (e) => { db = e.target.result; renderFileTree(); };
         request.onerror = (e) => console.error("IndexedDB Open Error:", e);
 
-        // --- Queue-Based File Ingestion (Performance Fix) ---
+        // --- Queue-Based File Ingestion ---
         document.getElementById('file-upload').addEventListener('change', (e) => handleUpload(e.target.files, false));
         document.getElementById('dir-upload').addEventListener('change', (e) => handleUpload(e.target.files, true));
 
         function handleUpload(files, isDirectory) {
             if (!db || files.length === 0) return;
-            
             const totalFiles = files.length;
             let currentIndex = 0;
-            const batchSize = 50; // Process 50 files per animation frame to prevent freezing
+            const batchSize = 50; 
 
             statusText.textContent = `Queuing ${totalFiles} files...`;
 
             function processNextBatch() {
                 const transaction = db.transaction([STORE_NAME], "readwrite");
                 const store = transaction.objectStore(STORE_NAME);
-                
                 const end = Math.min(currentIndex + batchSize, totalFiles);
                 
                 for (let i = currentIndex; i < end; i++) {
                     const file = files[i];
-                    // Path resolver accounts for single files vs folders
                     const path = (isDirectory && file.webkitRelativePath) ? file.webkitRelativePath : file.name;
-                    
                     if (path.includes('.DS_Store') || path.includes('__MACOSX')) continue;
 
                     const blob = new Blob([file], { type: file.type });
                     store.put({
-                        path: path,
-                        name: file.name,
-                        blob: blob,
+                        path: path, name: file.name, blob: blob,
                         mimeType: file.type || getMimeTypeByExtension(file.name)
                     });
                 }
@@ -345,21 +256,18 @@
                 transaction.oncomplete = () => {
                     currentIndex = end;
                     statusText.textContent = `Uploaded ${currentIndex} / ${totalFiles}`;
-                    
                     if (currentIndex < totalFiles) {
-                        // Yield to main thread, then process next batch
                         requestAnimationFrame(processNextBatch);
                     } else {
-                        statusText.textContent = ""; // Clear status
+                        statusText.textContent = ""; 
                         renderFileTree();
                     }
                 };
             }
-            
             processNextBatch();
         }
 
-        // --- Render UI Navigator ---
+        // --- Render UI Navigator (With Folder Sorting) ---
         function renderFileTree() {
             fileTree.innerHTML = "";
             if (!db) return;
@@ -376,38 +284,53 @@
                     return;
                 }
 
-                // Sort alphabetically
-                launchable.sort((a, b) => a.path.localeCompare(b.path)).forEach(file => {
-                    const li = document.createElement('li');
-                    li.className = 'file-item';
-                    li.innerHTML = `<span>📄 ${file.name}</span><button class="delete-btn" data-path="${file.path}">×</button>`;
-                    li.title = file.path; // Hover to see full path
+                // Group files by top-level directory
+                const folders = {};
+                launchable.forEach(file => {
+                    const parts = file.path.split('/');
+                    const folderName = parts.length > 1 ? parts[0] : "Root Files";
+                    if (!folders[folderName]) folders[folderName] = [];
+                    folders[folderName].push(file);
+                });
+
+                // Generate UI
+                Object.keys(folders).sort().forEach(folderName => {
+                    const folderDiv = document.createElement('div');
+                    folderDiv.className = 'folder-group';
+                    folderDiv.innerHTML = `<div class="folder-title">📁 ${folderName}</div><div class="folder-content"></div>`;
                     
-                    li.addEventListener('click', (e) => {
-                        if (e.target.className === 'delete-btn') return;
-                        document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
-                        li.classList.add('active');
-                        bootVirtualApplication(file.path, allFiles);
-                        // Auto-hide sidebar to give game room
-                        if(window.innerWidth < 1000) sidebar.classList.add('hidden');
-                    });
+                    const contentDiv = folderDiv.querySelector('.folder-content');
 
-                    li.querySelector('.delete-btn').addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        deleteAsset(file.path);
-                    });
+                    folders[folderName].sort((a, b) => a.name.localeCompare(b.name)).forEach(file => {
+                        const li = document.createElement('li');
+                        li.className = 'file-item';
+                        li.innerHTML = `<span>📄 ${file.name}</span><button class="delete-btn" data-path="${file.path}">×</button>`;
+                        li.title = file.path; 
+                        
+                        li.addEventListener('click', (ev) => {
+                            if (ev.target.className === 'delete-btn') return;
+                            document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
+                            li.classList.add('active');
+                            bootVirtualApplication(file.path, allFiles);
+                            if(window.innerWidth < 1000) sidebar.classList.add('hidden');
+                        });
 
-                    fileTree.appendChild(li);
+                        li.querySelector('.delete-btn').addEventListener('click', (ev) => {
+                            ev.stopPropagation();
+                            deleteAsset(file.path);
+                        });
+
+                        contentDiv.appendChild(li);
+                    });
+                    fileTree.appendChild(folderDiv);
                 });
             };
         }
 
-        // --- Execution Sandbox Router (The Core Engine) ---
+        // --- Execution Sandbox Router & Injection ---
         function bootVirtualApplication(entryPath, allFiles) {
             placeholder.style.display = 'none';
             gameFrame.style.display = 'block';
-            
-            // Force focus so the game grabs keyboard events natively
             gameFrame.focus();
 
             const virtualFileSystem = {};
@@ -416,12 +339,28 @@
             });
 
             const entryBlob = allFiles.find(f => f.path === entryPath).blob;
-            
             const reader = new FileReader();
+            
             reader.onload = function(e) {
                 let htmlContent = e.target.result;
 
-                // Path resolution logic fixed for single-files without parent directories
+                // 1. Inject Stealth Payload so Boss Key works inside the iframe game
+                const stealthPayload = `
+                    <script>
+                        window.addEventListener('keydown', (ev) => {
+                            if (ev.key === '\`') {
+                                window.parent.postMessage('bossKeyTrigger', '*');
+                            }
+                        });
+                    <\/script>
+                `;
+                if (htmlContent.includes('</head>')) {
+                    htmlContent = htmlContent.replace('</head>', stealthPayload + '</head>');
+                } else {
+                    htmlContent += stealthPayload;
+                }
+
+                // 2. Resolve internal file paths to blob URLs
                 const hasDir = entryPath.includes('/');
                 const currentDir = hasDir ? entryPath.substring(0, entryPath.lastIndexOf('/')) : '';
 
@@ -430,7 +369,6 @@
                     if (currentDir && realPath.startsWith(currentDir + '/')) {
                         relativeToken = realPath.substring(currentDir.length + 1);
                     }
-                    
                     const safeToken = relativeToken.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
                     const re = new RegExp(`(["'])(./)?${safeToken}(["'])`, 'g');
                     htmlContent = htmlContent.replace(re, `$1${blobUrl}$3`);
@@ -443,22 +381,13 @@
             reader.readAsText(entryBlob);
         }
 
-        // --- Fullscreen API Request ---
+        // --- UI & Environment Controls ---
         document.getElementById('fullscreen-btn').addEventListener('click', () => {
-            if (gameFrame.style.display === 'none') {
-                alert("Launch a game first before going fullscreen.");
-                return;
-            }
-            if (gameFrame.requestFullscreen) {
-                gameFrame.requestFullscreen();
-            } else if (gameFrame.webkitRequestFullscreen) { /* Safari */
-                gameFrame.webkitRequestFullscreen();
-            }
-            // Forcing focus after fullscreen ensures pointerlock engages easily
+            if (gameFrame.style.display === 'none') return alert("Launch a game first.");
+            if (gameFrame.requestFullscreen) { gameFrame.requestFullscreen(); }
             setTimeout(() => gameFrame.focus(), 100); 
         });
 
-        // --- Destruction Routines ---
         function deleteAsset(path) {
             const transaction = db.transaction([STORE_NAME], "readwrite");
             transaction.objectStore(STORE_NAME).delete(path);
@@ -478,31 +407,6 @@
             }
         });
 
-        // --- UI Controller Layer Mapping (Interaction Lockouts) ---
-        window.addEventListener('keydown', (e) => {
-            // CRITICAL: Prevent menus from opening if the user is playing the game
-            const isPlaying = document.pointerLockElement !== null || 
-                              document.fullscreenElement !== null ||
-                              document.activeElement === gameFrame;
-            
-            if (isPlaying) return; // Ignore keys if focused on game frame
-
-            if (e.key.toLowerCase() === 'h') {
-                controlPanel.classList.toggle('hidden');
-            }
-            if (e.key.toLowerCase() === 'j') {
-                sidebar.classList.toggle('hidden');
-            }
-        });
-
-        // Listen for clicks outside the frame to re-enable menu toggles
-        window.addEventListener('click', () => {
-            if (document.activeElement !== gameFrame) {
-                // Focus left the game iframe, hotkeys will work again natively
-            }
-        });
-
-        // --- Video Signal Filters ---
         const applyVideoFilters = () => {
             const b = document.getElementById('vid-brightness').value;
             const c = document.getElementById('vid-contrast').value;
@@ -516,20 +420,13 @@
             document.getElementById('val-gamma').textContent = `${g.toFixed(1)}x`;
             document.getElementById('val-invert').textContent = `${i}%`;
 
-            gameFrame.style.filter = `
-                brightness(${b}%) 
-                contrast(${c}%) 
-                saturate(${s}%) 
-                invert(${i}%)
-                brightness(${g})
-            `;
+            gameFrame.style.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) invert(${i}%) brightness(${g})`;
         };
 
         ['brightness', 'contrast', 'saturation', 'gamma', 'invert'].forEach(id => {
             document.getElementById(`vid-${id}`).addEventListener('input', applyVideoFilters);
         });
 
-        // --- Mime Type Inference Helper ---
         function getMimeTypeByExtension(filename) {
             const ext = filename.split('.').pop().toLowerCase();
             const map = {
