@@ -3,16 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IndexedDB Web App & Game Launcher</title>
+    <title>Eaglercraft Studio & Debugger</title>
     <style>
         :root {
-            /* Synced to Chrome OS theme */
             --bg-main: #202124;
             --bg-sidebar: #292a2d;
+            --bg-console: #1e1e1e;
             --text-main: #e8eaed;
             --text-muted: #9aa0a6;
             --accent: #8ab4f8;
             --border: rgba(255, 255, 255, 0.1);
+            --danger: #ff5555;
+            --success: #87c095;
         }
 
         body {
@@ -21,7 +23,7 @@
             display: flex; height: 100vh; overflow: hidden;
         }
 
-        /* Boss Key - Fake Google */
+        /* --- Boss Key Layer --- */
         #boss-layer {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: #fff; z-index: 99999; display: none;
@@ -31,40 +33,36 @@
         .g-blue { color: #4285f4; } .g-red { color: #ea4335; } .g-yellow { color: #fbbc05; } .g-green { color: #34a853; }
         .search-bar { width: 500px; height: 44px; border: 1px solid #dfe1e5; border-radius: 24px; margin-bottom: 30px; }
 
-        /* Sidebar File Explorer */
+        /* --- Sidebar UI --- */
         #sidebar {
             width: 300px; background: var(--bg-sidebar); border-right: 1px solid var(--border);
             display: flex; flex-direction: column; box-sizing: border-box;
-            z-index: 10; transition: transform 0.2s ease, width 0.2s;
+            z-index: 10; transition: transform 0.2s ease, margin-left 0.2s;
         }
-        #sidebar.hidden { transform: translateX(-100%); position: absolute; height: 100%; }
+        #sidebar.hidden { margin-left: -300px; }
 
         .sidebar-header { padding: 15px; border-bottom: 1px solid var(--border); }
-        .sidebar-header h2 { margin: 0 0 10px 0; font-size: 1.2rem; display: flex; justify-content: space-between; align-items: center; }
+        .sidebar-header h2 { margin: 0 0 10px 0; font-size: 1.2rem; color: var(--accent); }
 
-        .upload-btn-wrapper { position: relative; overflow: hidden; display: inline-block; width: 100%; margin-bottom: 8px; }
         .btn {
             border: 1px solid var(--border); color: #202124; background-color: var(--accent);
-            padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; font-weight: bold;
-            width: 100%; cursor: pointer; box-sizing: border-box; text-align: center;
+            padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: bold;
+            width: 100%; cursor: pointer; box-sizing: border-box; text-align: center; margin-bottom: 8px;
+            display: flex; justify-content: center; align-items: center; gap: 8px;
         }
+        .btn:hover { filter: brightness(1.1); }
         .btn-secondary { background-color: #3c4043; color: white; }
-        .btn-green { background-color: #87c095; margin-bottom: 8px; }
-        .btn-red { background-color: #ff4a4a; margin-top: 5px; color: white; }
-        .upload-btn-wrapper input[type=file] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; }
+        .btn-green { background-color: var(--success); }
+        .btn-red { background-color: var(--danger); color: white; }
 
-        #upload-status { font-size: 0.8rem; color: #87c095; margin-bottom: 5px; font-weight: bold; text-align: center; }
+        .upload-btn-wrapper { position: relative; overflow: hidden; display: inline-block; width: 100%; }
+        .upload-btn-wrapper input[type=file] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; }
+        #upload-status { font-size: 0.8rem; color: var(--success); margin-bottom: 5px; font-weight: bold; text-align: center; }
 
         #file-tree { flex: 1; overflow-y: auto; padding: 10px; list-style: none; margin: 0; }
-        
-        /* Folder UI Styles */
         .folder-group { margin-bottom: 10px; }
-        .folder-title {
-            font-size: 0.9rem; font-weight: bold; padding: 5px; color: var(--accent);
-            cursor: pointer; border-bottom: 1px solid var(--border); margin-bottom: 5px;
-        }
+        .folder-title { font-size: 0.9rem; font-weight: bold; padding: 5px; color: var(--accent); border-bottom: 1px solid var(--border); margin-bottom: 5px; }
         .folder-content { padding-left: 10px; display: block; }
-
         .file-item {
             padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;
             display: flex; justify-content: space-between; align-items: center;
@@ -72,15 +70,38 @@
         }
         .file-item:hover { background: rgba(255, 255, 255, 0.05); }
         .file-item.active { background: var(--accent); color: #000; }
-        .delete-btn { background: none; border: none; color: #ff4a4a; cursor: pointer; font-weight: bold; padding: 0 4px; display: none; }
+        .delete-btn { background: none; border: none; color: var(--danger); cursor: pointer; font-weight: bold; padding: 0 4px; display: none; }
         .file-item:hover .delete-btn { display: inline; }
 
-        /* Main Playback Area */
-        #main-content { flex: 1; position: relative; background: #000; display: flex; align-items: center; justify-content: center; }
-        #game-frame { width: 100%; height: 100%; border: none; display: block; background-color: #000; }
+        /* --- Main Content Area (Game + Console) --- */
+        #main-area { flex: 1; display: flex; flex-direction: column; background: #000; position: relative; }
+        
+        #game-wrapper { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
         #placeholder { color: var(--text-muted); text-align: center; }
+        #game-frame { width: 100%; height: 100%; border: none; display: none; outline: none; background: #000; }
 
-        /* Control Layer Panel */
+        /* --- Live Console UI --- */
+        #console-container {
+            height: 30vh; background: var(--bg-console); border-top: 2px solid var(--border);
+            display: flex; flex-direction: column; transition: height 0.2s;
+        }
+        #console-container.collapsed { height: 40px; }
+        #console-container.collapsed #console-output { display: none; }
+
+        #console-header {
+            background: #3c3f41; padding: 8px 15px; font-weight: bold; font-size: 0.9rem;
+            display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #111;
+        }
+        .console-actions button { background: #505354; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; margin-left: 5px; }
+        .console-actions button:hover { background: #606364; }
+
+        #console-output { flex: 1; overflow-y: auto; padding: 10px; margin: 0; white-space: pre-wrap; font-family: monospace; font-size: 13px; }
+        .log-log { color: #a9b7c6; }
+        .log-warn { color: #f1fa8c; }
+        .log-error { color: #ff5555; font-weight: bold; }
+        .log-sys { color: #8be9fd; font-weight: bold; }
+
+        /* --- Video Control Panel --- */
         #control-panel {
             position: absolute; top: 20px; right: 20px; background: rgba(32, 33, 36, 0.95);
             border: 1px solid var(--border); padding: 15px; border-radius: 10px; width: 260px;
@@ -88,17 +109,20 @@
             transition: opacity 0.2s, transform 0.2s;
         }
         #control-panel.hidden { opacity: 0; transform: translateY(-10px); pointer-events: none; }
-        .panel-section { margin-bottom: 15px; }
         .panel-section h3 { margin: 0 0 8px 0; font-size: 0.95rem; border-bottom: 1px solid var(--border); padding-bottom: 4px; color: var(--text-muted); }
         .control-group { margin-bottom: 8px; }
         .control-group label { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px; }
         .control-group input[type="range"] { width: 100%; margin: 0; }
 
-        .ui-hints {
-            position: absolute; bottom: 15px; right: 15px; background: rgba(0,0,0,0.7);
-            padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; pointer-events: none;
-            z-index: 99; color: var(--text-muted); text-align: right;
-        }
+        .ui-hints { position: absolute; bottom: 15px; right: 15px; background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; pointer-events: none; z-index: 99; color: var(--text-muted); text-align: right; }
+
+        /* --- Database Manager Modal --- */
+        #db-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 200; justify-content: center; align-items: center; }
+        #db-content { background: var(--bg-sidebar); width: 80%; max-width: 650px; max-height: 80%; border: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; border-radius: 8px; }
+        #db-list { flex: 1; overflow-y: auto; margin-top: 15px; border-top: 1px solid var(--border); padding-top: 10px; }
+        .db-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px dashed #444; }
+        .db-item button { margin-left: 10px; background: #4b6eaf; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .db-item button.danger-btn { background: var(--danger); }
     </style>
 </head>
 <body>
@@ -111,11 +135,13 @@
         <div class="search-bar"></div>
     </div>
 
+    <!-- Sidebar UI -->
     <div id="sidebar">
         <div class="sidebar-header">
-            <h2>System Launcher</h2>
-            <button class="btn btn-green" id="fullscreen-btn">⛶ Fullscreen Game</button>
+            <h2>Eagler Studio</h2>
+            <button class="btn btn-green" onclick="toggleFullscreen()">⛶ Fullscreen Game</button>
             <div id="upload-status"></div>
+            
             <div class="upload-btn-wrapper">
                 <button class="btn">📁 Upload Directory</button>
                 <input type="file" id="dir-upload" webkitdirectory directory multiple />
@@ -124,81 +150,97 @@
                 <button class="btn btn-secondary">📄 Upload Single HTML</button>
                 <input type="file" id="file-upload" accept=".html,.htm" />
             </div>
-            <button class="btn btn-red" id="clear-db-btn">⚠️ Clear Storage</button>
+            
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="openDatabaseManager()">📂 Manage Saved Logs</button>
+            <button class="btn btn-red" id="clear-db-btn">⚠️ Wipe File Cache</button>
         </div>
         <ul id="file-tree"></ul>
     </div>
 
-    <div id="main-content">
-        <div id="placeholder">
-            <h3>No Application Running</h3>
-            <p>Upload a folder or file, then select your entry HTML file to boot.</p>
+    <!-- Main Game & Console Area -->
+    <div id="main-area">
+        <div id="game-wrapper">
+            <div id="placeholder">
+                <h3>No Engine Running</h3>
+                <p>Upload a game file in the sidebar and select it to boot.</p>
+            </div>
+            <iframe id="game-frame" allow="cross-origin-isolated; autoplay; pointer-lock; keyboard; microphone; fullscreen; clipboard-read; clipboard-write"></iframe>
+            
+            <div class="ui-hints">
+                <strong>~</strong> Stealth Cloak<br>
+                <strong>H</strong> Video Panel<br>
+                <strong>J</strong> Toggle Sidebar
+            </div>
+
+            <div id="control-panel" class="hidden">
+                <div class="panel-section">
+                    <h3>Video Correction</h3>
+                    <div class="control-group"><label><span>Brightness</span><span id="val-brightness">100%</span></label><input type="range" id="vid-brightness" min="0" max="250" value="100"></div>
+                    <div class="control-group"><label><span>Contrast</span><span id="val-contrast">100%</span></label><input type="range" id="vid-contrast" min="0" max="250" value="100"></div>
+                    <div class="control-group"><label><span>Saturation</span><span id="val-saturation">100%</span></label><input type="range" id="vid-saturation" min="0" max="250" value="100"></div>
+                    <div class="control-group"><label><span>Gamma</span><span id="val-gamma">1.0x</span></label><input type="range" id="vid-gamma" min="40" max="180" value="100"></div>
+                </div>
+            </div>
         </div>
-        <iframe id="game-frame" style="display: none;" 
-            allow="cross-origin-isolated; autoplay; pointer-lock; keyboard; microphone; fullscreen" 
-            allowfullscreen="true">
-        </iframe>
+
+        <div id="console-container">
+            <div id="console-header">
+                <span style="color: var(--accent);">Live Debug Console</span>
+                <div class="console-actions">
+                    <button onclick="clearCurrentConsole()">Clear</button>
+                    <button onclick="toggleConsole()" id="console-toggle-btn">Minimize</button>
+                </div>
+            </div>
+            <div id="console-output"></div>
+        </div>
     </div>
 
-    <div class="ui-hints">
-        Press <strong>~</strong> for Stealth Cloak<br>
-        Press <strong>ESC</strong> to unlock mouse<br>
-        Press <strong>H</strong> for Video Panel<br>
-        Press <strong>J</strong> to toggle Sidebar
-    </div>
-
-    <div id="control-panel" class="hidden">
-        <div class="panel-section">
-            <h3>Video Correction</h3>
-            <div class="control-group">
-                <label><span>Brightness</span><span id="val-brightness">100%</span></label>
-                <input type="range" id="vid-brightness" min="0" max="250" value="100">
+    <!-- Database Modal -->
+    <div id="db-modal">
+        <div id="db-content">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="margin: 0; color: var(--accent);">Log History</h2>
+                <button class="btn btn-secondary" style="width:auto; margin:0;" onclick="closeDatabaseManager()">Close</button>
             </div>
-            <div class="control-group">
-                <label><span>Contrast</span><span id="val-contrast">100%</span></label>
-                <input type="range" id="vid-contrast" min="0" max="250" value="100">
-            </div>
-            <div class="control-group">
-                <label><span>Saturation</span><span id="val-saturation">100%</span></label>
-                <input type="range" id="vid-saturation" min="0" max="250" value="100">
-            </div>
-            <div class="control-group">
-                <label><span>Gamma Factor</span><span id="val-gamma">1.0x</span></label>
-                <input type="range" id="vid-gamma" min="40" max="180" value="100">
-            </div>
-            <div class="control-group">
-                <label><span>Invert Spectrum</span><span id="val-invert">0%</span></label>
-                <input type="range" id="vid-invert" min="0" max="100" value="0">
-            </div>
+            <div id="db-list"></div>
         </div>
     </div>
 
     <script>
+        function getTimestamp() {
+            return new Date().toISOString().split('T')[1].replace('Z', '');
+        }
+
         // --- Core Application State ---
         let db = null;
-        const DB_NAME = "LocalAppLauncherDB";
-        const STORE_NAME = "virtual_files";
+        const DB_NAME = "EaglerStudioDB";
+        const FILE_STORE = "virtual_files";
+        const LOG_STORE = "logs";
+
         const gameFrame = document.getElementById('game-frame');
         const placeholder = document.getElementById('placeholder');
         const fileTree = document.getElementById('file-tree');
         const controlPanel = document.getElementById('control-panel');
         const sidebar = document.getElementById('sidebar');
+        const consoleOut = document.getElementById('console-output');
         const statusText = document.getElementById('upload-status');
 
-        // --- Boss Key Logic ---
+        let currentSessionId = null;
+        let currentSessionDate = null;
+        let sessionLogs = [];
+        let pendingLogSave = false;
+
+        // --- Boss Key & Hotkeys ---
         let isCloaked = false;
         function toggleBossKey() {
             isCloaked = !isCloaked;
             document.getElementById('boss-layer').style.display = isCloaked ? 'flex' : 'none';
-            document.title = isCloaked ? "Google" : "IndexedDB Launcher";
+            document.title = isCloaked ? "Google" : "Eagler Studio";
         }
 
-        // Listen for keys on the main window
         window.addEventListener('keydown', (e) => {
             if (e.key === '`') toggleBossKey();
-            if (isCloaked) return; // Block other hotkeys if cloaked
-
-            // UI Toggles (Only if game frame doesn't have focus)
+            if (isCloaked) return;
             const isPlaying = document.pointerLockElement !== null || document.activeElement === gameFrame;
             if (!isPlaying) {
                 if (e.key.toLowerCase() === 'h') controlPanel.classList.toggle('hidden');
@@ -206,25 +248,34 @@
             }
         });
 
-        // Listen for messages FROM the injected iframe game script
         window.addEventListener('message', (e) => {
-            if (e.data === 'bossKeyTrigger') {
-                toggleBossKey();
+            if (e.data === 'bossKeyTrigger') toggleBossKey();
+            // Handle incoming logs from iframe
+            if (e.data && e.data.source === 'EAGLER_DEBUG') {
+                logToConsole(e.data.level, e.data.msg);
             }
         });
 
-        // --- Initialize IndexedDB Backend ---
-        const request = indexedDB.open(DB_NAME, 1);
+        // Focus iframe on hover to restore keyboard capture
+        gameFrame.addEventListener('mouseenter', () => {
+            if(gameFrame.style.display === 'block') gameFrame.focus();
+        });
+
+        // --- IndexedDB Setup (Files & Logs) ---
+        const request = indexedDB.open(DB_NAME, 2);
         request.onupgradeneeded = (e) => {
             db = e.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME, { keyPath: "path" });
-            }
+            if (!db.objectStoreNames.contains(FILE_STORE)) db.createObjectStore(FILE_STORE, { keyPath: "path" });
+            if (!db.objectStoreNames.contains(LOG_STORE)) db.createObjectStore(LOG_STORE, { keyPath: "id" });
         };
-        request.onsuccess = (e) => { db = e.target.result; renderFileTree(); };
-        request.onerror = (e) => console.error("IndexedDB Open Error:", e);
+        request.onsuccess = (e) => { 
+            db = e.target.result; 
+            renderFileTree(); 
+            logToConsole('sys', 'Studio Database Initialized.');
+        };
+        request.onerror = (e) => logToConsole('error', `DB Error: ${e.target.error}`);
 
-        // --- Queue-Based File Ingestion ---
+        // --- File Upload Logic ---
         document.getElementById('file-upload').addEventListener('change', (e) => handleUpload(e.target.files, false));
         document.getElementById('dir-upload').addEventListener('change', (e) => handleUpload(e.target.files, true));
 
@@ -234,32 +285,25 @@
             let currentIndex = 0;
             const batchSize = 50; 
 
-            statusText.textContent = `Queuing ${totalFiles} files...`;
-
             function processNextBatch() {
-                const transaction = db.transaction([STORE_NAME], "readwrite");
-                const store = transaction.objectStore(STORE_NAME);
+                const tx = db.transaction([FILE_STORE], "readwrite");
+                const store = tx.objectStore(FILE_STORE);
                 const end = Math.min(currentIndex + batchSize, totalFiles);
                 
                 for (let i = currentIndex; i < end; i++) {
                     const file = files[i];
                     const path = (isDirectory && file.webkitRelativePath) ? file.webkitRelativePath : file.name;
                     if (path.includes('.DS_Store') || path.includes('__MACOSX')) continue;
-
-                    const blob = new Blob([file], { type: file.type });
-                    store.put({
-                        path: path, name: file.name, blob: blob,
-                        mimeType: file.type || getMimeTypeByExtension(file.name)
-                    });
+                    store.put({ path: path, name: file.name, blob: new Blob([file], { type: file.type }) });
                 }
 
-                transaction.oncomplete = () => {
+                tx.oncomplete = () => {
                     currentIndex = end;
-                    statusText.textContent = `Uploaded ${currentIndex} / ${totalFiles}`;
+                    statusText.textContent = `Cached ${currentIndex} / ${totalFiles}`;
                     if (currentIndex < totalFiles) {
                         requestAnimationFrame(processNextBatch);
                     } else {
-                        statusText.textContent = ""; 
+                        setTimeout(() => { statusText.textContent = ""; }, 2000);
                         renderFileTree();
                     }
                 };
@@ -267,24 +311,20 @@
             processNextBatch();
         }
 
-        // --- Render UI Navigator (With Folder Sorting) ---
+        // --- Render Sidebar File Tree ---
         function renderFileTree() {
             fileTree.innerHTML = "";
             if (!db) return;
 
-            const transaction = db.transaction([STORE_NAME], "readonly");
-            const store = transaction.objectStore(STORE_NAME);
-            
-            store.getAll().onsuccess = (e) => {
+            db.transaction([FILE_STORE], "readonly").objectStore(FILE_STORE).getAll().onsuccess = (e) => {
                 const allFiles = e.target.result;
                 const launchable = allFiles.filter(f => f.name.endsWith('.html') || f.name.endsWith('.htm'));
 
                 if (launchable.length === 0) {
-                    fileTree.innerHTML = `<li style="padding:10px; color:var(--text-muted); font-size:0.8rem;">No execution maps loaded.</li>`;
+                    fileTree.innerHTML = `<li style="padding:10px; color:var(--text-muted); font-size:0.8rem;">No HTML maps loaded.</li>`;
                     return;
                 }
 
-                // Group files by top-level directory
                 const folders = {};
                 launchable.forEach(file => {
                     const parts = file.path.split('/');
@@ -293,19 +333,16 @@
                     folders[folderName].push(file);
                 });
 
-                // Generate UI
                 Object.keys(folders).sort().forEach(folderName => {
                     const folderDiv = document.createElement('div');
                     folderDiv.className = 'folder-group';
                     folderDiv.innerHTML = `<div class="folder-title">📁 ${folderName}</div><div class="folder-content"></div>`;
-                    
                     const contentDiv = folderDiv.querySelector('.folder-content');
 
                     folders[folderName].sort((a, b) => a.name.localeCompare(b.name)).forEach(file => {
                         const li = document.createElement('li');
                         li.className = 'file-item';
-                        li.innerHTML = `<span>📄 ${file.name}</span><button class="delete-btn" data-path="${file.path}">×</button>`;
-                        li.title = file.path; 
+                        li.innerHTML = `<span>📄 ${file.name}</span><button class="delete-btn">×</button>`;
                         
                         li.addEventListener('click', (ev) => {
                             if (ev.target.className === 'delete-btn') return;
@@ -317,7 +354,7 @@
 
                         li.querySelector('.delete-btn').addEventListener('click', (ev) => {
                             ev.stopPropagation();
-                            deleteAsset(file.path);
+                            deleteVirtualFile(file.path);
                         });
 
                         contentDiv.appendChild(li);
@@ -327,11 +364,17 @@
             };
         }
 
-        // --- Execution Sandbox Router & Injection ---
+        // --- Application Boot & Script Injection ---
         function bootVirtualApplication(entryPath, allFiles) {
             placeholder.style.display = 'none';
             gameFrame.style.display = 'block';
-            gameFrame.focus();
+
+            // Start new log session
+            currentSessionId = Date.now();
+            currentSessionDate = new Date().toLocaleString();
+            sessionLogs = [];
+            consoleOut.innerHTML = '';
+            logToConsole('sys', `Starting boot sequence for ${entryPath}...`);
 
             const virtualFileSystem = {};
             allFiles.forEach(file => {
@@ -344,64 +387,160 @@
             reader.onload = function(e) {
                 let htmlContent = e.target.result;
 
-                // 1. Inject Stealth Payload so Boss Key works inside the iframe game
-                const stealthPayload = `
-                    <script>
-                        window.addEventListener('keydown', (ev) => {
-                            if (ev.key === '\`') {
-                                window.parent.postMessage('bossKeyTrigger', '*');
-                            }
-                        });
-                    <\/script>
-                `;
-                if (htmlContent.includes('</head>')) {
-                    htmlContent = htmlContent.replace('</head>', stealthPayload + '</head>');
+                const injectedPayload = `
+                <script>
+                    window.addEventListener('keydown', (ev) => { if (ev.key === '\`') window.parent.postMessage('bossKeyTrigger', '*'); });
+                    (function() {
+                        const ogLog = console.log, ogWarn = console.warn, ogErr = console.error;
+                        function snd(lvl, args) {
+                            try {
+                                const p = Array.from(args).map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+                                window.parent.postMessage({ source: 'EAGLER_DEBUG', level: lvl, msg: p }, '*');
+                            } catch(e) {}
+                        }
+                        console.log = function() { snd('log', arguments); ogLog.apply(console, arguments); };
+                        console.warn = function() { snd('warn', arguments); ogWarn.apply(console, arguments); };
+                        console.error = function() { snd('error', arguments); ogErr.apply(console, arguments); };
+                        window.addEventListener('error', e => snd('error', ['Fatal Error:', e.message, 'at', e.filename + ':' + e.lineno]));
+                        window.addEventListener('unhandledrejection', e => snd('error', ['Promise Rejection:', String(e.reason)]));
+                    })();
+                <\/script>`;
+
+                if (htmlContent.includes('<head>')) {
+                    htmlContent = htmlContent.replace('<head>', '<head>' + injectedPayload);
                 } else {
-                    htmlContent += stealthPayload;
+                    htmlContent = injectedPayload + htmlContent;
                 }
 
-                // 2. Resolve internal file paths to blob URLs
+                // Resolve internal paths
                 const hasDir = entryPath.includes('/');
                 const currentDir = hasDir ? entryPath.substring(0, entryPath.lastIndexOf('/')) : '';
-
                 for (const [realPath, blobUrl] of Object.entries(virtualFileSystem)) {
                     let relativeToken = realPath;
                     if (currentDir && realPath.startsWith(currentDir + '/')) {
                         relativeToken = realPath.substring(currentDir.length + 1);
                     }
                     const safeToken = relativeToken.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                    const re = new RegExp(`(["'])(./)?${safeToken}(["'])`, 'g');
-                    htmlContent = htmlContent.replace(re, `$1${blobUrl}$3`);
+                    htmlContent = htmlContent.replace(new RegExp(`(["'])(./)?${safeToken}(["'])`, 'g'), `$1${blobUrl}$3`);
                 }
 
+                // Boot into iframe via Blob URL
                 const modifiedBlob = new Blob([htmlContent], { type: 'text/html' });
                 gameFrame.src = URL.createObjectURL(modifiedBlob);
+                
+                gameFrame.onload = () => {
+                    gameFrame.focus();
+                    logToConsole('sys', `Boot complete. Game has keyboard focus.`);
+                };
             };
-            
             reader.readAsText(entryBlob);
         }
 
-        // --- UI & Environment Controls ---
-        document.getElementById('fullscreen-btn').addEventListener('click', () => {
-            if (gameFrame.style.display === 'none') return alert("Launch a game first.");
-            if (gameFrame.requestFullscreen) { gameFrame.requestFullscreen(); }
-            setTimeout(() => gameFrame.focus(), 100); 
-        });
+        // --- Live Console & Log Saving ---
+        function logToConsole(level, msg) {
+            const fullString = `[${getTimestamp()}] [${level.toUpperCase()}] ${msg}`;
+            sessionLogs.push(fullString);
+            pendingLogSave = true;
 
-        function deleteAsset(path) {
-            const transaction = db.transaction([STORE_NAME], "readwrite");
-            transaction.objectStore(STORE_NAME).delete(path);
-            transaction.oncomplete = () => renderFileTree();
+            const line = document.createElement('div');
+            line.className = `log-${level}`;
+            line.textContent = fullString;
+            consoleOut.appendChild(line);
+            consoleOut.scrollTop = consoleOut.scrollHeight;
+        }
+
+        function clearCurrentConsole() {
+            consoleOut.innerHTML = '';
+            logToConsole('sys', 'Console screen wiped (logs still saving to DB).');
+        }
+
+        function toggleConsole() {
+            const container = document.getElementById('console-container');
+            const btn = document.getElementById('console-toggle-btn');
+            container.classList.toggle('collapsed');
+            btn.textContent = container.classList.contains('collapsed') ? 'Expand' : 'Minimize';
+        }
+
+        setInterval(() => {
+            if (db && pendingLogSave && sessionLogs.length > 0 && currentSessionId) {
+                db.transaction([LOG_STORE], "readwrite").objectStore(LOG_STORE).put({
+                    id: currentSessionId,
+                    date: currentSessionDate,
+                    logCount: sessionLogs.length,
+                    data: sessionLogs
+                });
+                pendingLogSave = false;
+            }
+        }, 2000);
+
+        // --- Log Manager UI ---
+        function openDatabaseManager() {
+            document.getElementById('db-modal').style.display = 'flex';
+            renderLogList();
+        }
+        function closeDatabaseManager() { document.getElementById('db-modal').style.display = 'none'; }
+
+        function renderLogList() {
+            const dbList = document.getElementById('db-list');
+            if (!db) return;
+            
+            db.transaction([LOG_STORE], "readonly").objectStore(LOG_STORE).getAll().onsuccess = (e) => {
+                const results = e.target.result.reverse();
+                if (results.length === 0) {
+                    dbList.innerHTML = "<div style='color:var(--text-muted);'>No log history found.</div>";
+                    return;
+                }
+
+                dbList.innerHTML = '';
+                results.forEach(record => {
+                    const row = document.createElement('div');
+                    row.className = 'db-item';
+                    
+                    const info = document.createElement('span');
+                    info.innerHTML = `<strong>Session: ${record.date}</strong><br><span style="font-size:12px;color:var(--text-muted);">${record.logCount} log entries</span>`;
+                    if(record.id === currentSessionId) info.innerHTML += " <span style='color:var(--success);'>(Active)</span>";
+                    
+                    const btnGroup = document.createElement('div');
+                    const dBtn = document.createElement('button');
+                    dBtn.textContent = '📥 Download';
+                    dBtn.onclick = () => {
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(new Blob([record.data.join('\n')], { type: 'text/plain' }));
+                        a.download = `Log_${record.date.replace(/[/\\:]/g, '-')}.txt`;
+                        a.click();
+                    };
+                    
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'danger-btn';
+                    delBtn.textContent = '🗑 Delete';
+                    delBtn.onclick = () => {
+                        if (confirm("Permanently delete this log?")) {
+                            db.transaction([LOG_STORE], "readwrite").objectStore(LOG_STORE).delete(record.id).oncomplete = renderLogList;
+                        }
+                    };
+
+                    btnGroup.appendChild(dBtn); btnGroup.appendChild(delBtn);
+                    row.appendChild(info); row.appendChild(btnGroup);
+                    dbList.appendChild(row);
+                });
+            };
+        }
+
+        // --- Utilities ---
+        function toggleFullscreen() {
+            if (gameFrame.style.display === 'none') return;
+            if (!document.fullscreenElement) { gameFrame.requestFullscreen(); } 
+            else { document.exitFullscreen(); }
+        }
+
+        function deleteVirtualFile(path) {
+            db.transaction([FILE_STORE], "readwrite").objectStore(FILE_STORE).delete(path).oncomplete = renderFileTree;
         }
 
         document.getElementById('clear-db-btn').addEventListener('click', () => {
-            if (confirm("Confirm database wipe? All cached offline files will be purged.")) {
-                const transaction = db.transaction([STORE_NAME], "readwrite");
-                transaction.objectStore(STORE_NAME).clear();
-                transaction.oncomplete = () => {
-                    gameFrame.src = "about:blank";
-                    gameFrame.style.display = 'none';
-                    placeholder.style.display = 'block';
+            if (confirm("Purge ALL virtual game files? (Logs will be kept)")) {
+                db.transaction([FILE_STORE], "readwrite").objectStore(FILE_STORE).clear().oncomplete = () => {
+                    gameFrame.src = "about:blank"; gameFrame.style.display = 'none'; placeholder.style.display = 'block';
                     renderFileTree();
                 };
             }
@@ -413,31 +552,16 @@
             const s = document.getElementById('vid-saturation').value;
             const i = document.getElementById('vid-invert').value;
             const g = document.getElementById('vid-gamma').value / 100;
-
             document.getElementById('val-brightness').textContent = `${b}%`;
             document.getElementById('val-contrast').textContent = `${c}%`;
             document.getElementById('val-saturation').textContent = `${s}%`;
             document.getElementById('val-gamma').textContent = `${g.toFixed(1)}x`;
             document.getElementById('val-invert').textContent = `${i}%`;
-
             gameFrame.style.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) invert(${i}%) brightness(${g})`;
         };
-
         ['brightness', 'contrast', 'saturation', 'gamma', 'invert'].forEach(id => {
             document.getElementById(`vid-${id}`).addEventListener('input', applyVideoFilters);
         });
-
-        function getMimeTypeByExtension(filename) {
-            const ext = filename.split('.').pop().toLowerCase();
-            const map = {
-                'html': 'text/html', 'htm': 'text/html',
-                'js': 'application/javascript', 'json': 'application/json',
-                'css': 'text/css', 'wasm': 'application/wasm',
-                'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
-                'gif': 'image/gif', 'svg': 'image/svg+xml'
-            };
-            return map[ext] || 'application/octet-stream';
-        }
     </script>
 </body>
 </html>
