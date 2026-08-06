@@ -23,15 +23,34 @@
             display: flex; height: 100vh; overflow: hidden;
         }
 
-        /* --- Boss Key Layer --- */
+        /* --- Realistic Google Boss Key Layer --- */
         #boss-layer {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #fff; z-index: 99999; display: none;
-            flex-direction: column; align-items: center; padding-top: 15vh; font-family: Arial, sans-serif;
+            background: #fff; color: #202124; z-index: 99999; display: none;
+            flex-direction: column; align-items: center; font-family: Arial, sans-serif;
         }
-        .google-logo { font-size: 80px; font-weight: bold; letter-spacing: -3px; margin-bottom: 20px; }
+        #boss-top-nav {
+            display: flex; justify-content: flex-end; padding: 15px 20px; gap: 15px; 
+            align-items: center; width: 100%; box-sizing: border-box; font-size: 13px;
+        }
+        #boss-top-nav a { color: #5f6368; text-decoration: none; }
+        #boss-top-nav a:hover { text-decoration: underline; }
+        .profile-pic { width: 32px; height: 32px; background: #673ab7; color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 16px; }
+        .google-logo { font-size: 88px; font-weight: bold; letter-spacing: -3px; margin-top: 10vh; margin-bottom: 25px; }
         .g-blue { color: #4285f4; } .g-red { color: #ea4335; } .g-yellow { color: #fbbc05; } .g-green { color: #34a853; }
-        .search-bar { width: 500px; height: 44px; border: 1px solid #dfe1e5; border-radius: 24px; margin-bottom: 30px; }
+        .search-container {
+            display: flex; align-items: center; width: 580px; max-width: 90vw; height: 46px; 
+            border: 1px solid #dfe1e5; border-radius: 24px; padding: 0 14px; box-sizing: border-box; transition: box-shadow 0.2s;
+        }
+        .search-container:hover, .search-container:focus-within { box-shadow: 0 1px 6px rgba(32,33,36,.28); border-color: rgba(223,225,229,0); }
+        .search-container input { flex: 1; border: none; outline: none; font-size: 16px; padding: 0 10px; }
+        .search-icon, .mic-icon { font-size: 18px; color: #9aa0a6; cursor: pointer; }
+        .boss-buttons { display: flex; gap: 12px; margin-top: 25px; }
+        .boss-buttons button {
+            background: #f8f9fa; border: 1px solid #f8f9fa; padding: 0 16px; height: 36px; 
+            border-radius: 4px; color: #3c4043; font-size: 14px; cursor: pointer;
+        }
+        .boss-buttons button:hover { border: 1px solid #dadce0; box-shadow: 0 1px 1px rgba(0,0,0,.1); color: #202124; }
 
         /* --- Sidebar UI --- */
         #sidebar {
@@ -76,7 +95,7 @@
         /* --- Main Content Area (Game + Console) --- */
         #main-area { flex: 1; display: flex; flex-direction: column; background: #000; position: relative; }
         
-        #game-wrapper { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+        #game-wrapper { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; background: #000; }
         #placeholder { color: var(--text-muted); text-align: center; }
         #game-frame { width: 100%; height: 100%; border: none; display: none; outline: none; background: #000; }
 
@@ -108,7 +127,7 @@
             backdrop-filter: blur(8px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 100;
             transition: opacity 0.2s, transform 0.2s;
         }
-        #control-panel.hidden { opacity: 0; transform: translateY(-10px); pointer-events: none; }
+        #control-panel.hidden { opacity: 0; transform: translateY(-10px); pointer-events: none; display: none; }
         .panel-section h3 { margin: 0 0 8px 0; font-size: 0.95rem; border-bottom: 1px solid var(--border); padding-bottom: 4px; color: var(--text-muted); }
         .control-group { margin-bottom: 8px; }
         .control-group label { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px; }
@@ -127,12 +146,26 @@
 </head>
 <body>
 
-    <!-- Stealth Layer -->
+    <!-- Realistic Google Boss Key Layer -->
     <div id="boss-layer">
+        <div id="boss-top-nav">
+            <a href="#">Gmail</a>
+            <a href="#">Images</a>
+            <a href="#" style="font-size: 18px; margin: 0 5px;">⋮</a>
+            <div class="profile-pic">U</div>
+        </div>
         <div class="google-logo">
             <span class="g-blue">G</span><span class="g-red">o</span><span class="g-yellow">o</span><span class="g-blue">g</span><span class="g-green">l</span><span class="g-red">e</span>
         </div>
-        <div class="search-bar"></div>
+        <div class="search-container">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="boss-search" autocomplete="off" title="Search">
+            <span class="mic-icon">🎤</span>
+        </div>
+        <div class="boss-buttons">
+            <button onclick="executeFakeSearch()">Google Search</button>
+            <button>I'm Feeling Lucky</button>
+        </div>
     </div>
 
     <!-- Sidebar UI -->
@@ -151,7 +184,8 @@
                 <input type="file" id="file-upload" accept=".html,.htm" />
             </div>
             
-            <button class="btn btn-secondary" style="margin-top:10px;" onclick="openDatabaseManager()">📂 Manage Saved Logs</button>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="toggleControlPanel()">🎛️ Video Controls</button>
+            <button class="btn btn-secondary" onclick="openDatabaseManager()">📂 Manage Saved Logs</button>
             <button class="btn btn-red" id="clear-db-btn">⚠️ Wipe File Cache</button>
         </div>
         <ul id="file-tree"></ul>
@@ -159,6 +193,7 @@
 
     <!-- Main Game & Console Area -->
     <div id="main-area">
+        <!-- Wrapper handles fullscreen so overlays stay visible -->
         <div id="game-wrapper">
             <div id="placeholder">
                 <h3>No Engine Running</h3>
@@ -167,8 +202,8 @@
             <iframe id="game-frame" allow="cross-origin-isolated; autoplay; pointer-lock; keyboard; microphone; fullscreen; clipboard-read; clipboard-write"></iframe>
             
             <div class="ui-hints">
-                <strong>~</strong> Stealth Cloak<br>
-                <strong>H</strong> Video Panel<br>
+                <strong>~ / `</strong> Stealth Cloak<br>
+                <strong>H</strong> Toggle Video Panel<br>
                 <strong>J</strong> Toggle Sidebar
             </div>
 
@@ -179,6 +214,7 @@
                     <div class="control-group"><label><span>Contrast</span><span id="val-contrast">100%</span></label><input type="range" id="vid-contrast" min="0" max="250" value="100"></div>
                     <div class="control-group"><label><span>Saturation</span><span id="val-saturation">100%</span></label><input type="range" id="vid-saturation" min="0" max="250" value="100"></div>
                     <div class="control-group"><label><span>Gamma</span><span id="val-gamma">1.0x</span></label><input type="range" id="vid-gamma" min="40" max="180" value="100"></div>
+                    <div class="control-group"><label><span>Invert</span><span id="val-invert">0%</span></label><input type="range" id="vid-invert" min="0" max="100" value="0"></div>
                 </div>
             </div>
         </div>
@@ -224,6 +260,7 @@
         const sidebar = document.getElementById('sidebar');
         const consoleOut = document.getElementById('console-output');
         const statusText = document.getElementById('upload-status');
+        const searchInput = document.getElementById('boss-search');
 
         let currentSessionId = null;
         let currentSessionDate = null;
@@ -234,32 +271,65 @@
         let isCloaked = false;
         function toggleBossKey() {
             isCloaked = !isCloaked;
-            document.getElementById('boss-layer').style.display = isCloaked ? 'flex' : 'none';
+            const layer = document.getElementById('boss-layer');
+            layer.style.display = isCloaked ? 'flex' : 'none';
             document.title = isCloaked ? "Google" : "Eagler Studio";
+            
+            // Auto focus search bar when entering cloak
+            if (isCloaked) {
+                setTimeout(() => searchInput.focus(), 50);
+            }
         }
 
+        // Real Google Search execution
+        function executeFakeSearch() {
+            const query = searchInput.value.trim();
+            if (query) {
+                window.location.href = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+            }
+        }
+        
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') executeFakeSearch();
+        });
+
         window.addEventListener('keydown', (e) => {
-            if (e.key === '`') toggleBossKey();
+            if (e.key === '`' || e.key === '~') {
+                e.preventDefault();
+                toggleBossKey();
+            }
             if (isCloaked) return;
-            const isPlaying = document.pointerLockElement !== null || document.activeElement === gameFrame;
-            if (!isPlaying) {
-                if (e.key.toLowerCase() === 'h') controlPanel.classList.toggle('hidden');
+            
+            // Check if game has locked mouse (meaning user is actively playing)
+            const isPlaying = document.pointerLockElement !== null;
+            if (!isPlaying && document.activeElement !== searchInput) {
+                if (e.key.toLowerCase() === 'h') toggleControlPanel();
                 if (e.key.toLowerCase() === 'j') sidebar.classList.toggle('hidden');
             }
         });
 
         window.addEventListener('message', (e) => {
             if (e.data === 'bossKeyTrigger') toggleBossKey();
-            // Handle incoming logs from iframe
             if (e.data && e.data.source === 'EAGLER_DEBUG') {
                 logToConsole(e.data.level, e.data.msg);
             }
         });
 
-        // Focus iframe on hover to restore keyboard capture
         gameFrame.addEventListener('mouseenter', () => {
             if(gameFrame.style.display === 'block') gameFrame.focus();
         });
+
+        function toggleControlPanel() {
+            if (controlPanel.classList.contains('hidden')) {
+                controlPanel.classList.remove('hidden');
+                controlPanel.style.display = 'block';
+            } else {
+                controlPanel.classList.add('hidden');
+                setTimeout(() => {
+                    if (controlPanel.classList.contains('hidden')) controlPanel.style.display = 'none';
+                }, 200);
+            }
+        }
 
         // --- IndexedDB Setup (Files & Logs) ---
         const request = indexedDB.open(DB_NAME, 2);
@@ -369,7 +439,6 @@
             placeholder.style.display = 'none';
             gameFrame.style.display = 'block';
 
-            // Start new log session
             currentSessionId = Date.now();
             currentSessionDate = new Date().toLocaleString();
             sessionLogs = [];
@@ -387,9 +456,10 @@
             reader.onload = function(e) {
                 let htmlContent = e.target.result;
 
+                // Inject payload allowing boss key exit and console hooking
                 const injectedPayload = `
                 <script>
-                    window.addEventListener('keydown', (ev) => { if (ev.key === '\`') window.parent.postMessage('bossKeyTrigger', '*'); });
+                    window.addEventListener('keydown', (ev) => { if (ev.key === '\`' || ev.key === '~') window.parent.postMessage('bossKeyTrigger', '*'); });
                     (function() {
                         const ogLog = console.log, ogWarn = console.warn, ogErr = console.error;
                         function snd(lvl, args) {
@@ -529,7 +599,8 @@
         // --- Utilities ---
         function toggleFullscreen() {
             if (gameFrame.style.display === 'none') return;
-            if (!document.fullscreenElement) { gameFrame.requestFullscreen(); } 
+            const wrapper = document.getElementById('game-wrapper'); // Fullscreens the wrapper so overlays work
+            if (!document.fullscreenElement) { wrapper.requestFullscreen().catch(err => console.log(err)); } 
             else { document.exitFullscreen(); }
         }
 
@@ -546,19 +617,25 @@
             }
         });
 
+        // --- Video Panel Application ---
         const applyVideoFilters = () => {
             const b = document.getElementById('vid-brightness').value;
             const c = document.getElementById('vid-contrast').value;
             const s = document.getElementById('vid-saturation').value;
             const i = document.getElementById('vid-invert').value;
             const g = document.getElementById('vid-gamma').value / 100;
+            
             document.getElementById('val-brightness').textContent = `${b}%`;
             document.getElementById('val-contrast').textContent = `${c}%`;
             document.getElementById('val-saturation').textContent = `${s}%`;
             document.getElementById('val-gamma').textContent = `${g.toFixed(1)}x`;
             document.getElementById('val-invert').textContent = `${i}%`;
-            gameFrame.style.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) invert(${i}%) brightness(${g})`;
+            
+            // Gamma acts as an overall brightness multiplier
+            const finalBrightness = b * g;
+            gameFrame.style.filter = `brightness(${finalBrightness}%) contrast(${c}%) saturate(${s}%) invert(${i}%)`;
         };
+
         ['brightness', 'contrast', 'saturation', 'gamma', 'invert'].forEach(id => {
             document.getElementById(`vid-${id}`).addEventListener('input', applyVideoFilters);
         });
